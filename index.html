@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR AUTO — Connexion</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="login-screen">
+  <div class="login-box">
+    <div class="brand">
+      <span class="mark">SB</span>
+      <div class="names">
+        <h1>SBR AUTO</h1>
+        <span class="sub">Missions &amp; prestataires</span>
+      </div>
+    </div>
+    <div class="intro">Convoyage, nettoyage, inspection — connecte-toi pour voir tes missions.</div>
+
+    <div class="login-panel">
+      <div id="msg"></div>
+      <form id="login-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;padding:11px;">Se connecter</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('login-form');
+const msgEl = document.getElementById('msg');
+
+function showMsg(text, type) {
+  msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+}
+
+async function redirectByRole(userId) {
+  const { data: profile, error } = await supabaseClient
+    .from('profiles')
+    .select('role, actif')
+    .eq('id', userId)
+    .single();
+
+  if (error || !profile) {
+    showMsg("Compte non configuré. Contacte l'administrateur.", 'error');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  if (!profile.actif) {
+    showMsg("Ce compte est désactivé.", 'error');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  window.location.href = profile.role === 'admin' ? 'admin.html' : 'prestataire.html';
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    showMsg("Email ou mot de passe incorrect.", 'error');
+    return;
+  }
+  await redirectByRole(data.user.id);
+});
+
+(async () => {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) await redirectByRole(session.user.id);
+})();
+</script>
+
+</body>
+</html>

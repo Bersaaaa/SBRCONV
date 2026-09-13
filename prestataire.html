@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR AUTO — Prestataire</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">SB</span>
+    <div class="names">
+      <h1>SBR AUTO</h1>
+      <span class="sub">Espace prestataire</span>
+    </div>
+  </div>
+  <div class="right">
+    <span id="who"></span>
+    <button class="btn btn-ghost" id="logout-btn">Déconnexion</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="page-head">
+    <div class="hint">Les prix affichés sont HT. C'est à toi de démarrer puis clôturer chaque mission, avec un état des lieux avant / après.</div>
+  </div>
+
+  <div class="board" style="grid-template-columns: 1fr 1fr;">
+    <div class="column">
+      <div class="column-head">
+        <span class="label">MISSIONS DISPONIBLES</span>
+        <span class="count mono" id="count-disponible">0</span>
+      </div>
+      <div id="col-disponible"></div>
+    </div>
+    <div class="column">
+      <div class="column-head">
+        <span class="label">MES MISSIONS</span>
+        <span class="count mono" id="count-mine">0</span>
+      </div>
+      <div id="col-mine"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modale état des lieux -->
+<div class="hidden" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow:auto;">
+  <div class="panel" style="max-width:480px;width:100%;max-height:88vh;overflow:auto;">
+    <div class="panel-head">
+      <strong id="edl-title">État des lieux</strong>
+      <button class="btn btn-ghost" id="edl-close" type="button">Fermer</button>
+    </div>
+    <form id="edl-form">
+      <div class="field-row">
+        <div class="field">
+          <label>Kilométrage</label>
+          <input type="number" id="edl-km" min="0">
+        </div>
+        <div class="field">
+          <label>Carburant</label>
+          <select id="edl-carburant">
+            <option value="">—</option>
+            <option value="reserve">Réserve</option>
+            <option value="quart">1/4</option>
+            <option value="moitie">1/2</option>
+            <option value="trois_quarts">3/4</option>
+            <option value="plein">Plein</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>État extérieur</label>
+        <textarea id="edl-ext" rows="2" placeholder="Rayures, chocs, propreté..."></textarea>
+      </div>
+      <div class="field">
+        <label>État intérieur</label>
+        <textarea id="edl-int" rows="2" placeholder="Propreté, dommages, objets oubliés..."></textarea>
+      </div>
+      <div class="field">
+        <label>Commentaire</label>
+        <textarea id="edl-comment" rows="2"></textarea>
+      </div>
+      <div class="field">
+        <label>Photos</label>
+        <div class="dropzone" id="edl-dropzone">
+          <div class="dz-icon">＋</div>
+          <div class="dz-text">Ajoute des photos</div>
+          <div class="dz-hint">Glisse-dépose ou clique — plusieurs photos possibles</div>
+        </div>
+        <input type="file" id="edl-photos-input" accept="image/*" multiple class="hidden">
+        <div class="preview-grid" id="edl-preview-grid"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="edl-submit" style="width:100%;padding:11px;">Valider</button>
+    </form>
+  </div>
+</div>
+
+<script>
+let currentUser = null;
+let edlMissionId = null;
+let edlType = null; // 'avant' | 'apres'
+
+const TYPE_LABEL = { convoyage: 'Convoyage', nettoyage: 'Nettoyage', inspection: 'Inspection', autre: 'Autre' };
+const STATUT_LABEL = { acceptee: 'Acceptée — à démarrer', en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée' };
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function availableCard(m) {
+  return `
+  <div class="card">
+    <div class="row1"><span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span></div>
+    <p class="titre">${m.titre}</p>
+    <div class="meta">
+      ${m.vehicule ? m.vehicule + '<br>' : ''}
+      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
+      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+    </div>
+    ${m.description ? `<div class="meta">${m.description}</div>` : ''}
+    <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
+    <div class="actions"><button class="btn btn-primary btn-sm" data-accept="${m.id}">Accepter</button></div>
+  </div>`;
+}
+
+function mineCard(m) {
+  let actions = '';
+  if (m.statut === 'acceptee') {
+    actions = `<div class="actions"><button class="btn btn-primary btn-sm" data-start="${m.id}">Démarrer (état des lieux avant)</button></div>`;
+  } else if (m.statut === 'en_cours') {
+    actions = `<div class="actions"><button class="btn btn-primary btn-sm" data-finish="${m.id}">Clôturer (état des lieux après)</button></div>`;
+  }
+  return `
+  <div class="card">
+    <div class="row1">
+      <span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span>
+      <span class="statut-pill">${STATUT_LABEL[m.statut] || m.statut}</span>
+    </div>
+    <p class="titre">${m.titre}</p>
+    <div class="meta">
+      ${m.vehicule ? m.vehicule + '<br>' : ''}
+      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
+      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+    </div>
+    <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
+    ${actions}
+  </div>`;
+}
+
+async function loadMissions() {
+  const { data: dispo } = await supabaseClient
+    .from('missions').select('*').eq('statut', 'disponible')
+    .order('date_prevue', { ascending: true });
+
+  const { data: mine } = await supabaseClient
+    .from('missions').select('*').eq('prestataire_id', currentUser.id)
+    .order('created_at', { ascending: false });
+
+  document.getElementById('count-disponible').textContent = (dispo || []).length;
+  document.getElementById('count-mine').textContent = (mine || []).length;
+
+  document.getElementById('col-disponible').innerHTML = (dispo && dispo.length)
+    ? dispo.map(availableCard).join('') : '<div class="empty">Aucune mission disponible pour le moment</div>';
+  document.getElementById('col-mine').innerHTML = (mine && mine.length)
+    ? mine.map(mineCard).join('') : '<div class="empty">Tu n\'as encore accepté aucune mission</div>';
+
+  document.querySelectorAll('[data-accept]').forEach(btn => {
+    btn.addEventListener('click', () => acceptMission(btn.dataset.accept));
+  });
+  document.querySelectorAll('[data-start]').forEach(btn => {
+    btn.addEventListener('click', () => openEdl(btn.dataset.start, 'avant'));
+  });
+  document.querySelectorAll('[data-finish]').forEach(btn => {
+    btn.addEventListener('click', () => openEdl(btn.dataset.finish, 'apres'));
+  });
+}
+
+async function acceptMission(id) {
+  const { error } = await supabaseClient
+    .from('missions')
+    .update({ statut: 'acceptee', prestataire_id: currentUser.id, accepted_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('statut', 'disponible');
+
+  if (error) { alert("Cette mission n'est plus disponible ou une erreur est survenue."); }
+  loadMissions();
+}
+
+let selectedFiles = [];
+
+function renderPreviews() {
+  const grid = document.getElementById('edl-preview-grid');
+  grid.innerHTML = selectedFiles.map((file, i) => `
+    <div class="preview-item" data-idx="${i}">
+      <img src="${file._previewUrl}">
+      <button type="button" class="rm" data-remove="${i}">×</button>
+    </div>`).join('');
+
+  grid.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.remove);
+      URL.revokeObjectURL(selectedFiles[i]._previewUrl);
+      selectedFiles.splice(i, 1);
+      renderPreviews();
+    });
+  });
+}
+
+function addFiles(fileList) {
+  Array.from(fileList).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    file._previewUrl = URL.createObjectURL(file);
+    selectedFiles.push(file);
+  });
+  renderPreviews();
+}
+
+const dropzone = document.getElementById('edl-dropzone');
+const photosInput = document.getElementById('edl-photos-input');
+
+dropzone.addEventListener('click', () => photosInput.click());
+photosInput.addEventListener('change', (e) => {
+  addFiles(e.target.files);
+  photosInput.value = '';
+});
+['dragenter', 'dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag-over'); });
+});
+dropzone.addEventListener('drop', (e) => {
+  if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+
+function openEdl(missionId, type) {
+  edlMissionId = missionId;
+  edlType = type;
+  document.getElementById('edl-title').textContent =
+    type === 'avant' ? "État des lieux — avant mission" : "État des lieux — après mission";
+  document.getElementById('edl-form').reset();
+  selectedFiles.forEach(f => URL.revokeObjectURL(f._previewUrl));
+  selectedFiles = [];
+  renderPreviews();
+  document.getElementById('edl-overlay').classList.remove('hidden');
+}
+document.getElementById('edl-close').addEventListener('click', () => {
+  document.getElementById('edl-overlay').classList.add('hidden');
+});
+
+async function uploadPhotos(files, missionId, type) {
+  const urls = [];
+  for (const file of files) {
+    const path = `${missionId}/${type}-${Date.now()}-${file.name}`;
+    const { error } = await supabaseClient.storage.from('etats-lieux').upload(path, file);
+    if (error) { console.error(error); continue; }
+    const { data } = supabaseClient.storage.from('etats-lieux').getPublicUrl(path);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+
+document.getElementById('edl-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submitBtn = document.getElementById('edl-submit');
+  submitBtn.disabled = true;
+
+  let photoUrls = [];
+  if (selectedFiles.length) {
+    submitBtn.textContent = `Envoi de ${selectedFiles.length} photo(s)...`;
+    photoUrls = await uploadPhotos(selectedFiles, edlMissionId, edlType);
+  } else {
+    submitBtn.textContent = 'Envoi en cours...';
+  }
+
+  const payload = {
+    mission_id: edlMissionId,
+    type: edlType,
+    kilometrage: document.getElementById('edl-km').value ? parseInt(document.getElementById('edl-km').value) : null,
+    carburant: document.getElementById('edl-carburant').value || null,
+    etat_exterieur: document.getElementById('edl-ext').value || null,
+    etat_interieur: document.getElementById('edl-int').value || null,
+    commentaire: document.getElementById('edl-comment').value || null,
+    photos: photoUrls,
+    created_by: currentUser.id
+  };
+
+  const { error: edlError } = await supabaseClient.from('etats_lieux').insert(payload);
+  if (edlError) {
+    alert("Erreur lors de l'enregistrement de l'état des lieux : " + edlError.message);
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Valider';
+    return;
+  }
+
+  const newStatut = edlType === 'avant' ? 'en_cours' : 'terminee';
+  const missionPayload = { statut: newStatut };
+  if (newStatut === 'terminee') missionPayload.termine_at = new Date().toISOString();
+
+  const { error: missionError } = await supabaseClient
+    .from('missions').update(missionPayload).eq('id', edlMissionId);
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Valider';
+
+  if (missionError) { alert("Erreur : " + missionError.message); return; }
+
+  selectedFiles.forEach(f => URL.revokeObjectURL(f._previewUrl));
+  selectedFiles = [];
+  document.getElementById('edl-overlay').classList.add('hidden');
+  loadMissions();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  window.location.href = 'index.html';
+});
+
+async function init() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+
+  const { data: profile, error } = await supabaseClient
+    .from('profiles').select('role, nom, actif').eq('id', session.user.id).single();
+
+  if (error || !profile || profile.role !== 'prestataire') {
+    window.location.href = 'index.html';
+    return;
+  }
+  if (!profile.actif) {
+    alert("Ton compte est désactivé.");
+    await supabaseClient.auth.signOut();
+    window.location.href = 'index.html';
+    return;
+  }
+
+  currentUser = session.user;
+  document.getElementById('who').textContent = profile.nom;
+  loadMissions();
+}
+
+init();
+</script>
+
+</body>
+</html>

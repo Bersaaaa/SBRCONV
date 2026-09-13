@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR AUTO — Admin</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="mark">SB</span>
+    <div class="names">
+      <h1>SBR AUTO</h1>
+      <span class="sub">Admin</span>
+    </div>
+  </div>
+  <div class="right">
+    <label class="toggle-ttc">
+      <input type="checkbox" id="ttc-toggle">
+      Afficher les prix en TTC
+    </label>
+    <span id="who"></span>
+    <button class="btn btn-ghost" id="logout-btn">Déconnexion</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="page-head">
+    <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
+    <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
+  </div>
+
+  <div class="panel hidden" id="form-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>Nouvelle mission</strong>
+      <button class="btn btn-ghost" id="close-form-btn">Fermer</button>
+    </div>
+    <form id="mission-form">
+      <div class="field-row">
+        <div class="field">
+          <label>Type</label>
+          <select id="f-type" required>
+            <option value="convoyage">Convoyage</option>
+            <option value="nettoyage">Nettoyage</option>
+            <option value="inspection">Inspection</option>
+            <option value="autre">Autre</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Véhicule (modèle / immat)</label>
+          <input type="text" id="f-vehicule" placeholder="Peugeot 208 - AB-123-CD">
+        </div>
+      </div>
+      <div class="field">
+        <label>Titre</label>
+        <input type="text" id="f-titre" required placeholder="Convoyage Lyon → Marseille">
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="f-description" rows="2" placeholder="Détails utiles au prestataire"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Lieu de départ</label>
+          <input type="text" id="f-depart">
+        </div>
+        <div class="field">
+          <label>Lieu d'arrivée</label>
+          <input type="text" id="f-arrivee">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Date prévue</label>
+          <input type="datetime-local" id="f-date">
+        </div>
+        <div class="field">
+          <label>Prix HT (€)</label>
+          <input type="number" id="f-prix" step="0.01" min="0" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Taux TVA (%)</label>
+        <input type="number" id="f-tva" step="0.1" value="20" style="max-width:120px;">
+      </div>
+      <button type="submit" class="btn btn-primary">Créer la mission</button>
+    </form>
+  </div>
+
+  <div class="board">
+    <div class="column">
+      <div class="column-head">
+        <span class="label">DISPONIBLES</span>
+        <span class="count mono" id="count-disponible">0</span>
+      </div>
+      <div id="col-disponible"></div>
+    </div>
+    <div class="column">
+      <div class="column-head">
+        <span class="label">EN COURS</span>
+        <span class="count mono" id="count-encours">0</span>
+      </div>
+      <div id="col-encours"></div>
+    </div>
+    <div class="column">
+      <div class="column-head">
+        <span class="label">CLÔTURÉES</span>
+        <span class="count mono" id="count-cloturees">0</span>
+      </div>
+      <div id="col-cloturees"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modale état des lieux -->
+<div class="hidden" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+  <div class="panel" style="max-width:520px;width:100%;max-height:85vh;overflow:auto;">
+    <div class="panel-head">
+      <strong>État des lieux</strong>
+      <button class="btn btn-ghost" id="edl-close">Fermer</button>
+    </div>
+    <div id="edl-content"></div>
+  </div>
+</div>
+
+<script>
+let ttcMode = false;
+let currentUser = null;
+
+const TYPE_LABEL = { convoyage: 'Convoyage', nettoyage: 'Nettoyage', inspection: 'Inspection', autre: 'Autre' };
+const STATUT_LABEL = { disponible: 'Disponible', acceptee: 'Acceptée', en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée' };
+const CARBURANT_LABEL = { reserve: 'Réserve', quart: '1/4', moitie: '1/2', trois_quarts: '3/4', plein: 'Plein' };
+
+function formatPrix(prixHt, tauxTva) {
+  const val = ttcMode ? prixHt * (1 + tauxTva / 100) : prixHt;
+  return val.toFixed(2).replace('.', ',') + ' €';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function missionCard(m) {
+  const prestataireLine = m.prestataire ? `<div class="meta">Prestataire : <strong>${m.prestataire.nom}</strong></div>` : '';
+  let actions = '';
+  if (m.statut === 'disponible') {
+    actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button></div>`;
+  } else if (m.statut === 'acceptee' || m.statut === 'en_cours' || m.statut === 'terminee') {
+    actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button></div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="row1">
+      <span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span>
+      ${m.statut !== 'disponible' ? `<span class="statut-pill">${STATUT_LABEL[m.statut]}</span>` : ''}
+    </div>
+    <p class="titre">${m.titre}</p>
+    <div class="meta">
+      ${m.vehicule ? m.vehicule + '<br>' : ''}
+      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
+      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+    </div>
+    ${prestataireLine}
+    <div class="prix mono">${formatPrix(m.prix_ht, m.taux_tva)}<span class="devise-label">${ttcMode ? 'TTC' : 'HT'}</span></div>
+    ${actions}
+  </div>`;
+}
+
+async function loadMissions() {
+  const { data, error } = await supabaseClient
+    .from('missions')
+    .select('*, prestataire:profiles!missions_prestataire_id_fkey(nom)')
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error(error); return; }
+
+  const disponibles = data.filter(m => m.statut === 'disponible');
+  const encours = data.filter(m => m.statut === 'acceptee' || m.statut === 'en_cours');
+  const cloturees = data.filter(m => m.statut === 'terminee' || m.statut === 'annulee');
+
+  document.getElementById('count-disponible').textContent = disponibles.length;
+  document.getElementById('count-encours').textContent = encours.length;
+  document.getElementById('count-cloturees').textContent = cloturees.length;
+
+  document.getElementById('col-disponible').innerHTML = disponibles.length
+    ? disponibles.map(missionCard).join('') : '<div class="empty">Aucune mission disponible</div>';
+  document.getElementById('col-encours').innerHTML = encours.length
+    ? encours.map(missionCard).join('') : '<div class="empty">Aucune mission en cours</div>';
+  document.getElementById('col-cloturees').innerHTML = cloturees.length
+    ? cloturees.map(missionCard).join('') : '<div class="empty">Aucune mission clôturée</div>';
+
+  document.querySelectorAll('[data-cancel]').forEach(btn => {
+    btn.addEventListener('click', () => updateStatut(btn.dataset.cancel, 'annulee'));
+  });
+  document.querySelectorAll('[data-edl]').forEach(btn => {
+    btn.addEventListener('click', () => openEdl(btn.dataset.edl));
+  });
+}
+
+async function updateStatut(id, statut) {
+  const { error } = await supabaseClient.from('missions').update({ statut }).eq('id', id);
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadMissions();
+}
+
+function edlBlock(label, e) {
+  if (!e) return `<div class="meta" style="margin-bottom:14px;">${label} : non renseigné</div>`;
+  const photos = (e.photos || []).map(url => `<img src="${url}" class="photo-thumb">`).join('');
+  return `
+    <div style="margin-bottom:16px;">
+      <div class="statut-pill" style="font-weight:700;color:var(--text);margin-bottom:6px;">${label}</div>
+      <div class="meta">
+        ${e.kilometrage != null ? `Kilométrage : <strong>${e.kilometrage} km</strong><br>` : ''}
+        ${e.carburant ? `Carburant : <strong>${CARBURANT_LABEL[e.carburant] || e.carburant}</strong><br>` : ''}
+        ${e.etat_exterieur ? `Extérieur : ${e.etat_exterieur}<br>` : ''}
+        ${e.etat_interieur ? `Intérieur : ${e.etat_interieur}<br>` : ''}
+        ${e.commentaire ? `Commentaire : ${e.commentaire}` : ''}
+      </div>
+      ${photos ? `<div class="photo-strip">${photos}</div>` : ''}
+    </div>`;
+}
+
+async function openEdl(missionId) {
+  const { data, error } = await supabaseClient
+    .from('etats_lieux').select('*').eq('mission_id', missionId);
+
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  const avant = (data || []).find(e => e.type === 'avant');
+  const apres = (data || []).find(e => e.type === 'apres');
+
+  document.getElementById('edl-content').innerHTML =
+    edlBlock('Avant mission', avant) + '<hr class="divider">' + edlBlock('Après mission', apres);
+  document.getElementById('edl-overlay').classList.remove('hidden');
+}
+document.getElementById('edl-close').addEventListener('click', () => {
+  document.getElementById('edl-overlay').classList.add('hidden');
+});
+
+document.getElementById('ttc-toggle').addEventListener('change', (e) => {
+  ttcMode = e.target.checked;
+  loadMissions();
+});
+
+document.getElementById('new-mission-btn').addEventListener('click', () => {
+  document.getElementById('form-panel').classList.remove('hidden');
+});
+document.getElementById('close-form-btn').addEventListener('click', () => {
+  document.getElementById('form-panel').classList.add('hidden');
+});
+
+document.getElementById('mission-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    type: document.getElementById('f-type').value,
+    titre: document.getElementById('f-titre').value,
+    description: document.getElementById('f-description').value || null,
+    vehicule: document.getElementById('f-vehicule').value || null,
+    lieu_depart: document.getElementById('f-depart').value || null,
+    lieu_arrivee: document.getElementById('f-arrivee').value || null,
+    date_prevue: document.getElementById('f-date').value || null,
+    prix_ht: parseFloat(document.getElementById('f-prix').value),
+    taux_tva: parseFloat(document.getElementById('f-tva').value) || 20,
+    created_by: currentUser.id
+  };
+  const { error } = await supabaseClient.from('missions').insert(payload);
+  if (error) { alert("Erreur : " + error.message); return; }
+  e.target.reset();
+  document.getElementById('f-tva').value = 20;
+  document.getElementById('form-panel').classList.add('hidden');
+  loadMissions();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+  window.location.href = 'index.html';
+});
+
+async function init() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+
+  const { data: profile, error } = await supabaseClient
+    .from('profiles').select('role, nom').eq('id', session.user.id).single();
+
+  if (error || !profile || profile.role !== 'admin') {
+    window.location.href = 'index.html';
+    return;
+  }
+
+  currentUser = session.user;
+  document.getElementById('who').textContent = profile.nom;
+  loadMissions();
+}
+
+init();
+</script>
+
+</body>
+</html>
