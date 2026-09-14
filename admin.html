@@ -32,9 +32,13 @@
 
   <div class="page-head">
     <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
-    <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" id="prestataires-btn">Prestataires</button>
+      <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
+    </div>
   </div>
 
+  <!-- Panneau nouvelle mission -->
   <div class="panel hidden" id="form-panel" style="margin-bottom:20px;">
     <div class="panel-head">
       <strong>Nouvelle mission</strong>
@@ -66,30 +70,54 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Lieu de départ</label>
+          <label id="label-lieu-depart">Lieu de départ</label>
           <input type="text" id="f-depart">
         </div>
-        <div class="field">
+        <div class="field" id="field-lieu-arrivee-wrap">
           <label>Lieu d'arrivée</label>
           <input type="text" id="f-arrivee">
         </div>
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Date prévue</label>
+          <label id="label-date-prevue">Date prévue</label>
           <input type="datetime-local" id="f-date">
         </div>
-        <div class="field">
-          <label>Prix HT (€)</label>
-          <input type="number" id="f-prix" step="0.01" min="0" required>
+        <div class="field" id="field-date-arrivee-wrap">
+          <label>Date d'arrivée prévue</label>
+          <input type="datetime-local" id="f-date-arrivee">
         </div>
       </div>
       <div class="field">
+        <label>Prix HT (€)</label>
+        <input type="number" id="f-prix" step="0.01" min="0" required style="max-width:200px;">
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:500;">
+          <input type="checkbox" id="f-tva-active" style="width:auto;">
+          Appliquer la TVA sur cette mission
+        </label>
+        <div class="field-hint">Décochée par défaut — active-la uniquement quand tu factures la TVA sur cette mission.</div>
+      </div>
+      <div class="field hidden" id="f-tva-wrap">
         <label>Taux TVA (%)</label>
         <input type="number" id="f-tva" step="0.1" value="20" style="max-width:120px;">
       </div>
       <button type="submit" class="btn btn-primary">Créer la mission</button>
     </form>
+  </div>
+
+  <!-- Panneau prestataires -->
+  <div class="panel hidden" id="prestataires-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>Prestataires</strong>
+      <button class="btn btn-ghost" id="close-prestataires-btn">Fermer</button>
+    </div>
+    <div class="field-hint" style="margin-bottom:14px;">
+      Un prestataire ne voit que les missions disponibles dans les spécialités cochées ci-dessous.
+      Les comptes se créent dans le Dashboard Supabase (Authentication → Users), voir README.
+    </div>
+    <div id="prestataires-list"></div>
   </div>
 
   <div class="board">
@@ -129,9 +157,74 @@
   </div>
 </div>
 
+<!-- Modale facture -->
+<div class="hidden" id="facture-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+  <div class="panel" style="max-width:420px;width:100%;">
+    <div class="panel-head">
+      <strong>Facture</strong>
+      <button class="btn btn-ghost" id="facture-close" type="button">Fermer</button>
+    </div>
+    <div id="facture-existing"></div>
+    <form id="facture-form">
+      <div class="field">
+        <label>Numéro de facture</label>
+        <input type="text" id="facture-numero" placeholder="FAC-2026-001">
+      </div>
+      <div class="field">
+        <label>Fichier (PDF)</label>
+        <input type="file" id="facture-fichier" accept="application/pdf">
+      </div>
+      <button type="submit" class="btn btn-primary" id="facture-submit" style="width:100%;padding:11px;">Enregistrer</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modale notation -->
+<div class="hidden" id="note-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+  <div class="panel" style="max-width:380px;width:100%;">
+    <div class="panel-head">
+      <strong>Noter le prestataire</strong>
+      <button class="btn btn-ghost" id="note-close" type="button">Fermer</button>
+    </div>
+    <form id="note-form">
+      <div class="field">
+        <label>Note</label>
+        <div id="note-stars" style="display:flex; gap:6px; font-size:26px; cursor:pointer;"></div>
+      </div>
+      <div class="field">
+        <label>Commentaire</label>
+        <textarea id="note-comment" rows="3" placeholder="Ponctualité, soin apporté au véhicule..."></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:11px;">Enregistrer la note</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modale contrat cadre prestataire -->
+<div class="hidden" id="contrat-cadre-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+  <div class="panel" style="max-width:420px;width:100%;">
+    <div class="panel-head">
+      <strong>Contrat cadre — autorisation à travailler avec SBR AUTO</strong>
+      <button class="btn btn-ghost" id="contrat-cadre-close" type="button">Fermer</button>
+    </div>
+    <div id="contrat-cadre-existing"></div>
+    <div class="field-hint" style="margin-bottom:14px;">
+      Dépose ici le contrat signé (papier scanné ou signé électroniquement en dehors du site) qui autorise ce prestataire à travailler avec SBR AUTO.
+    </div>
+    <form id="contrat-cadre-form">
+      <div class="field">
+        <label>Fichier (PDF)</label>
+        <input type="file" id="contrat-cadre-fichier" accept="application/pdf" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="contrat-cadre-submit" style="width:100%;padding:11px;">Enregistrer</button>
+    </form>
+  </div>
+</div>
+
 <script>
 let ttcMode = false;
 let currentUser = null;
+let factureMissionId = null;
 
 const TYPE_LABEL = { convoyage: 'Convoyage', nettoyage: 'Nettoyage', inspection: 'Inspection', autre: 'Autre' };
 const STATUT_LABEL = { disponible: 'Disponible', acceptee: 'Acceptée', en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée' };
@@ -149,14 +242,43 @@ function formatDate(iso) {
          d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function locationDateHtml(m) {
+  let html = '';
+  if (m.type === 'convoyage') {
+    if (m.lieu_depart || m.lieu_arrivee) {
+      html += (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>';
+    }
+    if (m.date_prevue) html += 'Départ : ' + formatDate(m.date_prevue) + '<br>';
+    if (m.date_arrivee_prevue) html += 'Arrivée : ' + formatDate(m.date_arrivee_prevue) + '<br>';
+  } else {
+    if (m.lieu_depart) html += m.lieu_depart + '<br>';
+    if (m.date_prevue) html += formatDate(m.date_prevue) + '<br>';
+  }
+  return html;
+}
+
 function missionCard(m) {
   const prestataireLine = m.prestataire ? `<div class="meta">Prestataire : <strong>${m.prestataire.nom}</strong></div>` : '';
+  const factureLine = m.facture_numero
+    ? `<div class="meta">Facture : <strong>${m.facture_numero}</strong></div>` : '';
+
   let actions = '';
   if (m.statut === 'disponible') {
     actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button></div>`;
-  } else if (m.statut === 'acceptee' || m.statut === 'en_cours' || m.statut === 'terminee') {
+  } else if (m.statut === 'acceptee' || m.statut === 'en_cours') {
     actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button></div>`;
+  } else if (m.statut === 'terminee') {
+    actions = `<div class="actions">
+      <button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button>
+      <button class="btn btn-ghost btn-sm" data-facture="${m.id}" data-facture-num="${m.facture_numero || ''}" data-facture-url="${m.facture_url || ''}">${m.facture_url ? 'Voir facture' : 'Ajouter facture'}</button>
+      ${m.prestataire_id ? `<button class="btn btn-ghost btn-sm" data-note="${m.id}" data-note-prestataire="${m.prestataire_id}">${m.evaluation ? 'Modifier la note' : 'Noter'}</button>` : ''}
+    </div>`;
   }
+
+  const contratLine = m.contrat_url
+    ? `<div class="meta"><a href="${m.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">Contrat (PDF)</a></div>` : '';
+  const noteLine = m.evaluation
+    ? `<div class="meta">Note : <strong>${'★'.repeat(m.evaluation.note)}${'☆'.repeat(5 - m.evaluation.note)}</strong></div>` : '';
 
   return `
   <div class="card">
@@ -167,11 +289,13 @@ function missionCard(m) {
     <p class="titre">${m.titre}</p>
     <div class="meta">
       ${m.vehicule ? m.vehicule + '<br>' : ''}
-      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
-      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+      ${locationDateHtml(m)}
     </div>
     ${prestataireLine}
-    <div class="prix mono">${formatPrix(m.prix_ht, m.taux_tva)}<span class="devise-label">${ttcMode ? 'TTC' : 'HT'}</span></div>
+    ${factureLine}
+    ${contratLine}
+    ${noteLine}
+    <div class="prix mono">${formatPrix(m.prix_ht, m.taux_tva)}<span class="devise-label">${ttcMode ? 'TTC' : (m.taux_tva > 0 ? 'HT' : 'sans TVA')}</span></div>
     ${actions}
   </div>`;
 }
@@ -183,6 +307,11 @@ async function loadMissions() {
     .order('created_at', { ascending: false });
 
   if (error) { console.error(error); return; }
+
+  const { data: evals } = await supabaseClient.from('evaluations').select('*');
+  const evalByMission = {};
+  (evals || []).forEach(ev => { evalByMission[ev.mission_id] = ev; });
+  data.forEach(m => { m.evaluation = evalByMission[m.id] || null; });
 
   const disponibles = data.filter(m => m.statut === 'disponible');
   const encours = data.filter(m => m.statut === 'acceptee' || m.statut === 'en_cours');
@@ -205,6 +334,12 @@ async function loadMissions() {
   document.querySelectorAll('[data-edl]').forEach(btn => {
     btn.addEventListener('click', () => openEdl(btn.dataset.edl));
   });
+  document.querySelectorAll('[data-facture]').forEach(btn => {
+    btn.addEventListener('click', () => openFacture(btn.dataset.facture, btn.dataset.factureNum, btn.dataset.factureUrl));
+  });
+  document.querySelectorAll('[data-note]').forEach(btn => {
+    btn.addEventListener('click', () => openNote(btn.dataset.note, btn.dataset.notePrestataire, evalByMission[btn.dataset.note]));
+  });
 }
 
 async function updateStatut(id, statut) {
@@ -215,7 +350,9 @@ async function updateStatut(id, statut) {
 
 function edlBlock(label, e) {
   if (!e) return `<div class="meta" style="margin-bottom:14px;">${label} : non renseigné</div>`;
-  const photos = (e.photos || []).map(url => `<img src="${url}" class="photo-thumb">`).join('');
+  const photos = (e.photos || [])
+    .map(url => `<a href="${url}" target="_blank" rel="noopener"><img src="${url}" class="photo-thumb"></a>`)
+    .join('');
   return `
     <div style="margin-bottom:16px;">
       <div class="statut-pill" style="font-weight:700;color:var(--text);margin-bottom:6px;">${label}</div>
@@ -247,6 +384,96 @@ document.getElementById('edl-close').addEventListener('click', () => {
   document.getElementById('edl-overlay').classList.add('hidden');
 });
 
+function openFacture(missionId, numero, url) {
+  factureMissionId = missionId;
+  document.getElementById('facture-numero').value = numero || '';
+  document.getElementById('facture-fichier').value = '';
+  document.getElementById('facture-existing').innerHTML = url
+    ? `<div class="meta" style="margin-bottom:14px;">Facture actuelle : <a href="${url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">ouvrir le PDF</a></div>`
+    : '';
+  document.getElementById('facture-overlay').classList.remove('hidden');
+}
+document.getElementById('facture-close').addEventListener('click', () => {
+  document.getElementById('facture-overlay').classList.add('hidden');
+});
+
+document.getElementById('facture-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submitBtn = document.getElementById('facture-submit');
+  submitBtn.disabled = true;
+
+  const numero = document.getElementById('facture-numero').value || null;
+  const file = document.getElementById('facture-fichier').files[0];
+  const payload = { facture_numero: numero, facture_emise_le: new Date().toISOString() };
+
+  if (file) {
+    submitBtn.textContent = 'Envoi du PDF...';
+    const path = `${factureMissionId}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabaseClient.storage.from('factures').upload(path, file);
+    if (upErr) {
+      alert("Erreur d'envoi du fichier : " + upErr.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Enregistrer';
+      return;
+    }
+    const { data } = supabaseClient.storage.from('factures').getPublicUrl(path);
+    payload.facture_url = data.publicUrl;
+  }
+
+  const { error } = await supabaseClient.from('missions').update(payload).eq('id', factureMissionId);
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Enregistrer';
+
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  document.getElementById('facture-overlay').classList.add('hidden');
+  loadMissions();
+});
+
+let noteMissionId = null;
+let notePrestataireId = null;
+let noteValue = 0;
+
+function renderStars() {
+  const el = document.getElementById('note-stars');
+  el.innerHTML = [1, 2, 3, 4, 5].map(n => `
+    <span data-star="${n}" style="color:${n <= noteValue ? 'var(--amber)' : 'var(--border)'};">★</span>
+  `).join('');
+  el.querySelectorAll('[data-star]').forEach(s => {
+    s.addEventListener('click', () => { noteValue = parseInt(s.dataset.star); renderStars(); });
+  });
+}
+
+function openNote(missionId, prestataireId, existing) {
+  noteMissionId = missionId;
+  notePrestataireId = prestataireId;
+  noteValue = existing ? existing.note : 0;
+  document.getElementById('note-comment').value = existing ? (existing.commentaire || '') : '';
+  renderStars();
+  document.getElementById('note-overlay').classList.remove('hidden');
+}
+document.getElementById('note-close').addEventListener('click', () => {
+  document.getElementById('note-overlay').classList.add('hidden');
+});
+
+document.getElementById('note-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!noteValue) { alert('Choisis une note de 1 à 5 étoiles.'); return; }
+
+  const { error } = await supabaseClient.from('evaluations').upsert({
+    mission_id: noteMissionId,
+    prestataire_id: notePrestataireId,
+    note: noteValue,
+    commentaire: document.getElementById('note-comment').value || null,
+    created_by: currentUser.id
+  }, { onConflict: 'mission_id' });
+
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  document.getElementById('note-overlay').classList.add('hidden');
+  loadMissions();
+});
+
 document.getElementById('ttc-toggle').addEventListener('change', (e) => {
   ttcMode = e.target.checked;
   loadMissions();
@@ -254,31 +481,199 @@ document.getElementById('ttc-toggle').addEventListener('change', (e) => {
 
 document.getElementById('new-mission-btn').addEventListener('click', () => {
   document.getElementById('form-panel').classList.remove('hidden');
+  updateFormForType(document.getElementById('f-type').value);
 });
 document.getElementById('close-form-btn').addEventListener('click', () => {
   document.getElementById('form-panel').classList.add('hidden');
 });
 
+document.getElementById('f-tva-active').addEventListener('change', (e) => {
+  const wrap = document.getElementById('f-tva-wrap');
+  wrap.classList.toggle('hidden', !e.target.checked);
+});
+
+function updateFormForType(type) {
+  const arriveeWrap = document.getElementById('field-lieu-arrivee-wrap');
+  const dateArriveeWrap = document.getElementById('field-date-arrivee-wrap');
+  const labelDepart = document.getElementById('label-lieu-depart');
+  const labelDate = document.getElementById('label-date-prevue');
+
+  if (type === 'convoyage') {
+    labelDepart.textContent = 'Lieu de départ';
+    arriveeWrap.classList.remove('hidden');
+    labelDate.textContent = 'Date de départ prévue';
+    dateArriveeWrap.classList.remove('hidden');
+  } else if (type === 'nettoyage' || type === 'inspection') {
+    labelDepart.textContent = 'Lieu';
+    arriveeWrap.classList.add('hidden');
+    document.getElementById('f-arrivee').value = '';
+    labelDate.textContent = 'Date prévue';
+    dateArriveeWrap.classList.add('hidden');
+    document.getElementById('f-date-arrivee').value = '';
+  } else {
+    labelDepart.textContent = 'Lieu de départ';
+    arriveeWrap.classList.remove('hidden');
+    labelDate.textContent = 'Date prévue';
+    dateArriveeWrap.classList.add('hidden');
+    document.getElementById('f-date-arrivee').value = '';
+  }
+}
+document.getElementById('f-type').addEventListener('change', (e) => updateFormForType(e.target.value));
+
 document.getElementById('mission-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const tvaActive = document.getElementById('f-tva-active').checked;
+  const type = document.getElementById('f-type').value;
   const payload = {
-    type: document.getElementById('f-type').value,
+    type: type,
     titre: document.getElementById('f-titre').value,
     description: document.getElementById('f-description').value || null,
     vehicule: document.getElementById('f-vehicule').value || null,
     lieu_depart: document.getElementById('f-depart').value || null,
-    lieu_arrivee: document.getElementById('f-arrivee').value || null,
+    lieu_arrivee: (type === 'nettoyage' || type === 'inspection') ? null : (document.getElementById('f-arrivee').value || null),
     date_prevue: document.getElementById('f-date').value || null,
+    date_arrivee_prevue: type === 'convoyage' ? (document.getElementById('f-date-arrivee').value || null) : null,
     prix_ht: parseFloat(document.getElementById('f-prix').value),
-    taux_tva: parseFloat(document.getElementById('f-tva').value) || 20,
+    taux_tva: tvaActive ? (parseFloat(document.getElementById('f-tva').value) || 20) : 0,
     created_by: currentUser.id
   };
   const { error } = await supabaseClient.from('missions').insert(payload);
   if (error) { alert("Erreur : " + error.message); return; }
   e.target.reset();
   document.getElementById('f-tva').value = 20;
+  document.getElementById('f-tva-active').checked = false;
+  document.getElementById('f-tva-wrap').classList.add('hidden');
+  updateFormForType(document.getElementById('f-type').value);
   document.getElementById('form-panel').classList.add('hidden');
   loadMissions();
+});
+
+/* --- Prestataires --- */
+const SPECIALITES = ['convoyage', 'nettoyage', 'inspection', 'autre'];
+
+function prestataireRow(p) {
+  const checks = SPECIALITES.map(s => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text-muted); font-weight:500;">
+      <input type="checkbox" data-spec="${s}" ${p.specialites.includes(s) ? 'checked' : ''} style="width:auto;">
+      ${TYPE_LABEL[s]}
+    </label>`).join('');
+
+  const noteLine = p._avgNote
+    ? `<span class="statut-pill">★ ${p._avgNote.toFixed(1)}/5 (${p._noteCount} mission${p._noteCount > 1 ? 's' : ''} notée${p._noteCount > 1 ? 's' : ''})</span>`
+    : `<span class="statut-pill">Pas encore noté</span>`;
+
+  const contratLine = p.contrat_url
+    ? `<div class="meta">Contrat cadre : <a href="${p.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">signé, voir le PDF</a></div>`
+    : `<div class="meta">Contrat cadre : non déposé</div>`;
+
+  return `
+  <div class="card" data-prestataire-row="${p.id}">
+    <div class="row1">
+      <p class="titre" style="margin:0;">${p.nom}</p>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted);">
+        <input type="checkbox" data-actif ${p.actif ? 'checked' : ''} style="width:auto;">
+        Actif
+      </label>
+    </div>
+    ${noteLine}
+    ${contratLine}
+    <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">${checks}</div>
+    <div class="actions">
+      <button class="btn btn-primary btn-sm" data-save-prestataire="${p.id}">Enregistrer</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-contrat-cadre="${p.id}" data-contrat-cadre-url="${p.contrat_url || ''}">${p.contrat_url ? 'Remplacer le contrat' : 'Ajouter le contrat'}</button>
+    </div>
+  </div>`;
+}
+
+async function loadPrestataires() {
+  const { data, error } = await supabaseClient
+    .from('profiles').select('*').eq('role', 'prestataire').order('nom');
+
+  if (error) { console.error(error); return; }
+
+  const { data: evals } = await supabaseClient.from('evaluations').select('prestataire_id, note');
+  (data || []).forEach(p => {
+    const notes = (evals || []).filter(ev => ev.prestataire_id === p.id).map(ev => ev.note);
+    p._noteCount = notes.length;
+    p._avgNote = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null;
+  });
+
+  document.getElementById('prestataires-list').innerHTML = (data && data.length)
+    ? data.map(prestataireRow).join('')
+    : '<div class="empty">Aucun prestataire pour le moment. Crée un compte dans Supabase (Authentication → Users), voir README.</div>';
+
+  document.querySelectorAll('[data-save-prestataire]').forEach(btn => {
+    btn.addEventListener('click', () => savePrestataire(btn.dataset.savePrestataire));
+  });
+  document.querySelectorAll('[data-contrat-cadre]').forEach(btn => {
+    btn.addEventListener('click', () => openContratCadre(btn.dataset.contratCadre, btn.dataset.contratCadreUrl));
+  });
+}
+
+async function savePrestataire(id) {
+  const row = document.querySelector(`[data-prestataire-row="${id}"]`);
+  const specialites = SPECIALITES.filter(s => row.querySelector(`[data-spec="${s}"]`).checked);
+  const actif = row.querySelector('[data-actif]').checked;
+
+  const { error } = await supabaseClient
+    .from('profiles').update({ specialites, actif }).eq('id', id);
+
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadPrestataires();
+}
+
+document.getElementById('prestataires-btn').addEventListener('click', () => {
+  document.getElementById('prestataires-panel').classList.remove('hidden');
+  loadPrestataires();
+});
+document.getElementById('close-prestataires-btn').addEventListener('click', () => {
+  document.getElementById('prestataires-panel').classList.add('hidden');
+});
+
+let contratCadrePrestataireId = null;
+
+function openContratCadre(prestataireId, url) {
+  contratCadrePrestataireId = prestataireId;
+  document.getElementById('contrat-cadre-fichier').value = '';
+  document.getElementById('contrat-cadre-existing').innerHTML = url
+    ? `<div class="meta" style="margin-bottom:14px;">Contrat actuel : <a href="${url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">ouvrir le PDF</a></div>`
+    : '';
+  document.getElementById('contrat-cadre-overlay').classList.remove('hidden');
+}
+document.getElementById('contrat-cadre-close').addEventListener('click', () => {
+  document.getElementById('contrat-cadre-overlay').classList.add('hidden');
+});
+
+document.getElementById('contrat-cadre-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('contrat-cadre-fichier').files[0];
+  if (!file) return;
+
+  const submitBtn = document.getElementById('contrat-cadre-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Envoi du PDF...';
+
+  const path = `${contratCadrePrestataireId}/cadre-${Date.now()}-${file.name}`;
+  const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, file);
+  if (upErr) {
+    alert("Erreur d'envoi du fichier : " + upErr.message);
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Enregistrer';
+    return;
+  }
+  const { data } = supabaseClient.storage.from('contrats').getPublicUrl(path);
+
+  const { error } = await supabaseClient.from('profiles')
+    .update({ contrat_url: data.publicUrl, contrat_ajoute_le: new Date().toISOString() })
+    .eq('id', contratCadrePrestataireId);
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'Enregistrer';
+
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  document.getElementById('contrat-cadre-overlay').classList.add('hidden');
+  loadPrestataires();
 });
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
