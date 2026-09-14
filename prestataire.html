@@ -6,6 +6,7 @@
 <title>SBR AUTO — Prestataire</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
 </head>
 <body>
@@ -116,6 +117,21 @@ function formatDate(iso) {
          d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function locationDateHtml(m) {
+  let html = '';
+  if (m.type === 'convoyage') {
+    if (m.lieu_depart || m.lieu_arrivee) {
+      html += (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>';
+    }
+    if (m.date_prevue) html += 'Départ : ' + formatDate(m.date_prevue) + '<br>';
+    if (m.date_arrivee_prevue) html += 'Arrivée : ' + formatDate(m.date_arrivee_prevue) + '<br>';
+  } else {
+    if (m.lieu_depart) html += m.lieu_depart + '<br>';
+    if (m.date_prevue) html += formatDate(m.date_prevue) + '<br>';
+  }
+  return html;
+}
+
 function availableCard(m) {
   return `
   <div class="card">
@@ -123,8 +139,7 @@ function availableCard(m) {
     <p class="titre">${m.titre}</p>
     <div class="meta">
       ${m.vehicule ? m.vehicule + '<br>' : ''}
-      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
-      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+      ${locationDateHtml(m)}
     </div>
     ${m.description ? `<div class="meta">${m.description}</div>` : ''}
     <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
@@ -139,6 +154,11 @@ function mineCard(m) {
   } else if (m.statut === 'en_cours') {
     actions = `<div class="actions"><button class="btn btn-primary btn-sm" data-finish="${m.id}">Clôturer (état des lieux après)</button></div>`;
   }
+  const contratLine = m.contrat_url
+    ? `<div class="meta"><a href="${m.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">Voir mon contrat (PDF)</a></div>`
+    : '';
+  const noteLine = m.evaluation
+    ? `<div class="meta">Note reçue : <strong>${'★'.repeat(m.evaluation.note)}${'☆'.repeat(5 - m.evaluation.note)}</strong></div>` : '';
   return `
   <div class="card">
     <div class="row1">
@@ -148,10 +168,11 @@ function mineCard(m) {
     <p class="titre">${m.titre}</p>
     <div class="meta">
       ${m.vehicule ? m.vehicule + '<br>' : ''}
-      ${m.lieu_depart || m.lieu_arrivee ? (m.lieu_depart || '?') + ' → ' + (m.lieu_arrivee || '?') + '<br>' : ''}
-      ${m.date_prevue ? formatDate(m.date_prevue) : ''}
+      ${locationDateHtml(m)}
     </div>
     <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
+    ${contratLine}
+    ${noteLine}
     ${actions}
   </div>`;
 }
@@ -164,6 +185,12 @@ async function loadMissions() {
   const { data: mine } = await supabaseClient
     .from('missions').select('*').eq('prestataire_id', currentUser.id)
     .order('created_at', { ascending: false });
+
+  const { data: evals } = await supabaseClient
+    .from('evaluations').select('*').eq('prestataire_id', currentUser.id);
+  const evalByMission = {};
+  (evals || []).forEach(ev => { evalByMission[ev.mission_id] = ev; });
+  (mine || []).forEach(m => { m.evaluation = evalByMission[m.id] || null; });
 
   document.getElementById('count-disponible').textContent = (dispo || []).length;
   document.getElementById('count-mine').textContent = (mine || []).length;
@@ -185,14 +212,95 @@ async function loadMissions() {
 }
 
 async function acceptMission(id) {
-  const { error } = await supabaseClient
+  const { data: mission, error } = await supabaseClient
     .from('missions')
     .update({ statut: 'acceptee', prestataire_id: currentUser.id, accepted_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('statut', 'disponible');
+    .eq('statut', 'disponible')
+    .select()
+    .single();
 
-  if (error) { alert("Cette mission n'est plus disponible ou une erreur est survenue."); }
+  if (error || !mission) {
+    alert("Cette mission n'est plus disponible ou une erreur est survenue.");
+    loadMissions();
+    return;
+  }
+
+  await generateContrat(mission);
   loadMissions();
+}
+
+function buildContratPdf(mission, prestataireNom) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const prixTtc = mission.prix_ht * (1 + (mission.taux_tva || 0) / 100);
+  const dateStr = new Date().toLocaleDateString('fr-FR');
+  let y = 20;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('SBR AUTO — Contrat de mission', 20, y);
+  y += 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  const lines = [
+    `Mission : ${mission.titre}`,
+    `Type : ${TYPE_LABEL[mission.type] || mission.type}`,
+    mission.vehicule ? `Véhicule : ${mission.vehicule}` : null,
+    mission.lieu_depart || mission.lieu_arrivee
+      ? `Trajet : ${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}` : null,
+    mission.date_prevue ? `Date prévue : ${formatDate(mission.date_prevue)}` : null,
+    '',
+    `Prestataire : ${prestataireNom}`,
+    `Rémunération : ${mission.prix_ht.toFixed(2)} € HT`
+      + (mission.taux_tva > 0 ? ` (TVA ${mission.taux_tva}%, soit ${prixTtc.toFixed(2)} € TTC)` : ' (sans TVA)'),
+  ].filter(Boolean);
+
+  lines.forEach(line => { doc.text(line, 20, y); y += 8; });
+
+  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Conditions', 20, y);
+  y += 8;
+  doc.setFont('helvetica', 'normal');
+  const conditions = [
+    "Le prestataire s'engage à réaliser la mission décrite ci-dessus pour",
+    "le compte de SBR AUTO, dans les délais convenus, et à assurer la",
+    "bonne exécution de la prestation.",
+    "",
+    "Un état des lieux du véhicule (kilométrage, carburant, état",
+    "extérieur/intérieur, photos) doit être renseigné par le prestataire",
+    "avant le démarrage et après la clôture de la mission.",
+    "",
+    "Le règlement s'effectue selon les modalités convenues entre SBR AUTO",
+    "et le prestataire, sur présentation de la facture correspondante.",
+  ];
+  conditions.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+
+  y += 10;
+  doc.text(`Fait le ${dateStr}. Accepté électroniquement par ${prestataireNom}`, 20, y);
+  y += 6.5;
+  doc.text(`via la plateforme SBR AUTO.`, 20, y);
+
+  return doc.output('blob');
+}
+
+async function generateContrat(mission) {
+  try {
+    const blob = buildContratPdf(mission, document.getElementById('who').textContent);
+    const path = `${mission.id}/contrat-${Date.now()}.pdf`;
+    const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, blob, {
+      contentType: 'application/pdf'
+    });
+    if (upErr) { console.error(upErr); return; }
+    const { data } = supabaseClient.storage.from('contrats').getPublicUrl(path);
+    await supabaseClient.from('missions')
+      .update({ contrat_url: data.publicUrl, contrat_genere_le: new Date().toISOString() })
+      .eq('id', mission.id);
+  } catch (e) {
+    console.error('Erreur génération contrat', e);
+  }
 }
 
 let selectedFiles = [];

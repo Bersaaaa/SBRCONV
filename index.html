@@ -73,7 +73,15 @@ form.addEventListener('submit', async (e) => {
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
-    showMsg("Email ou mot de passe incorrect.", 'error');
+    if (error.message.includes('Email not confirmed')) {
+      showMsg("Email non confirmé. Dans Supabase, réédite l'utilisateur (Authentication → Users) et confirme son email, ou recrée-le en cochant \"Auto Confirm User\".", 'error');
+    } else if (error.message.includes('Invalid login credentials')) {
+      showMsg("Email ou mot de passe incorrect.", 'error');
+    } else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+      showMsg("Connexion au serveur impossible — vérifie que SUPABASE_URL et SUPABASE_ANON_KEY sont bien renseignés dans config.js.", 'error');
+    } else {
+      showMsg("Erreur : " + error.message, 'error');
+    }
     return;
   }
   await redirectByRole(data.user.id);
