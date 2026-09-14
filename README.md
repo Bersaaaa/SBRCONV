@@ -23,7 +23,9 @@ le SQL Editor et exécute, dans l'ordre, uniquement les migrations que tu n'as
 pas encore passées :
 1. `migration_v2.sql` (spécialités prestataires, factures) — si pas encore fait.
 2. `migration_v3.sql` (notation des prestataires, contrats PDF automatiques) — si pas encore fait.
-3. `migration_v4.sql` (contrat cadre par prestataire, date d'arrivée pour les convoyages).
+3. `migration_v4.sql` (contrat cadre par prestataire, date d'arrivée pour les convoyages) — si pas encore fait.
+4. `migration_v5.sql` (paramètres entreprise, signature électronique du contrat cadre) — si pas encore fait.
+5. `migration_v6.sql` (désistement d'un prestataire avant démarrage d'une mission).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -56,14 +58,33 @@ tu y coches Convoyage / Nettoyage / Inspection / Autre pour chacun, et
 "Enregistrer". Un prestataire sans aucune spécialité cochée ne verra aucune
 mission disponible.
 
-### Contrat cadre (autorisation à travailler avec toi)
+### Contrat cadre (autorisation à travailler avec toi) — signature électronique
 
 C'est différent du contrat de mission (généré automatiquement à chaque
 acceptation) : ici c'est le contrat général qui autorise un prestataire à
-travailler avec SBR AUTO. Dans le panneau **Prestataires**, bouton "Ajouter
-le contrat" sur sa ligne → tu déposes le PDF (signé par ailleurs, papier
-scanné ou signature électronique externe). Il reste ensuite consultable
-depuis cette même ligne, côté admin uniquement.
+travailler avec SBR AUTO, avec ta signature de société d'un côté et celle
+du prestataire de l'autre.
+
+1. D'abord, une seule fois : bouton **"Paramètres entreprise"** en haut de
+   `admin.html` → renseigne le nom de ta société, son adresse, et dépose
+   une image de ta signature (photo ou scan sur fond clair). Elle sera
+   apposée automatiquement sur tous les contrats générés.
+2. Dans le panneau **Prestataires**, bouton **"Générer et envoyer le
+   contrat"** sur la ligne d'un prestataire : un PDF est généré avec ta
+   signature déjà apposée, et le statut passe à "en attente de signature
+   du prestataire".
+3. Côté prestataire, un bandeau apparaît en haut de son espace tant qu'il
+   n'a pas signé : il relit le contrat, dessine sa signature du doigt (ou
+   à la souris) dans un petit pavé, valide. Un nouveau PDF est généré avec
+   les deux signatures et remplace le précédent ; le statut passe à
+   "signé".
+4. Tu peux suivre le statut de chacun (non envoyé / en attente / signé,
+   avec la date) directement dans le panneau Prestataires, avec un lien
+   pour ouvrir le PDF à tout moment.
+
+Si un prestataire a déjà signé un contrat papier ou par un autre moyen,
+le bouton **"Déposer un PDF déjà signé"** reste disponible pour l'importer
+directement (statut mis à "signé" sans passer par la signature en ligne).
 
 ## 4. Déployer le site
 
@@ -71,6 +92,14 @@ Le site est 100% statique (pas de build). Le plus simple :
 - Sur vercel.com → New Project → glisse le dossier `sbr-missions`
   (comme tes autres apps sbrauto.vercel.app / sbrcompta.vercel.app).
 - Ou Netlify Drop (netlify.com/drop) pour un déploiement en 10 secondes.
+
+Le site est aussi une **PWA (application installable)** : une fois déployé
+en HTTPS (Vercel/Netlify le sont par défaut), toi et tes prestataires
+pouvez l'ajouter à l'écran d'accueil du téléphone (Chrome : menu → "Ajouter
+à l'écran d'accueil" ; Safari iOS : partager → "Sur l'écran d'accueil"). Il
+s'ouvre alors comme une vraie appli, sans barre d'adresse, avec son icône.
+Les données restent toujours en direct depuis Supabase — seule la coquille
+(pages, styles) est mise en cache pour un chargement plus rapide.
 
 ## 5. Notifications par email (optionnel)
 
@@ -124,7 +153,8 @@ webhook.
 - **Factures** : sur une mission "Terminée", un bouton "Ajouter facture" te
   permet de saisir un numéro de facture et/ou déposer le PDF. Une fois
   ajoutée, le bouton devient "Voir facture" et l'ouvre dans un nouvel
-  onglet.
+  onglet. Le prestataire concerné voit aussi ce lien depuis sa propre
+  carte de la mission.
 - **Contrat automatique** : dès qu'un prestataire accepte une mission, un
   PDF de contrat est généré automatiquement dans son navigateur (mission,
   véhicule, prix, conditions) et déposé dans le bucket `contrats`. Toi et
@@ -144,11 +174,18 @@ webhook.
     passe en "En cours".
   - **Clôturer** → même formulaire côté "après" → la mission passe en
     "Terminée".
+  - **Me désister** (visible tant que la mission n'est pas démarrée) →
+    la mission redevient disponible pour les autres prestataires.
+- Toi (admin), tu peux annuler une mission à tout moment — disponible,
+  acceptée ou en cours — via le bouton "Annuler" sur sa carte (une
+  confirmation est demandée).
 - Tout le monde arrive par `index.html` (connexion), qui redirige
   automatiquement vers le bon espace selon le rôle.
 - Les photos d'état des lieux sont stockées dans le bucket Supabase Storage
   `etats-lieux`, les factures PDF dans `factures`, et les contrats générés
   automatiquement dans `contrats`.
+- Le logo SBR AUTO est utilisé partout : en-tête de chaque page, favicon,
+  et icône de l'app une fois installée en PWA.
 
 ## Idées pour la suite
 
@@ -162,5 +199,3 @@ webhook.
   création manuelle par toi dans Supabase).
 - Relances automatiques si une mission "disponible" reste longtemps sans
   prestataire.
-- Signature électronique du contrat par le prestataire (au-delà de
-  l'acceptation en un clic).

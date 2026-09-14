@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SBR AUTO — Prestataire</title>
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
@@ -13,7 +17,7 @@
 
 <div class="topbar">
   <div class="brand">
-    <span class="mark">SB</span>
+    <img src="icons/logo-mark.png" class="mark" alt="SBR AUTO">
     <div class="names">
       <h1>SBR AUTO</h1>
       <span class="sub">Espace prestataire</span>
@@ -29,6 +33,19 @@
 
   <div class="page-head">
     <div class="hint">Les prix affichés sont HT. C'est à toi de démarrer puis clôturer chaque mission, avec un état des lieux avant / après.</div>
+  </div>
+
+  <div class="panel hidden" id="contrat-banner" style="margin-bottom:20px; border-color:var(--amber);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <strong style="font-size:14px;">Un contrat est en attente de ta signature</strong>
+        <div class="meta">Merci de le lire et de le signer pour pouvoir continuer à recevoir des missions.</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a id="contrat-banner-voir" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Voir le contrat</a>
+        <button class="btn btn-primary btn-sm" id="contrat-banner-signer">Signer maintenant</button>
+      </div>
+    </div>
   </div>
 
   <div class="board" style="grid-template-columns: 1fr 1fr;">
@@ -102,8 +119,30 @@
   </div>
 </div>
 
+<!-- Modale signature du contrat -->
+<div class="hidden" id="sign-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;">
+  <div class="panel" style="max-width:460px;width:100%;max-height:90vh;overflow:auto;">
+    <div class="panel-head">
+      <strong>Signer le contrat</strong>
+      <button class="btn btn-ghost" id="sign-close" type="button">Fermer</button>
+    </div>
+    <div class="field-hint" style="margin-bottom:12px;">
+      Dessine ta signature ci-dessous avec le doigt ou la souris, puis valide.
+      <a id="sign-voir-contrat" href="#" target="_blank" rel="noopener" style="color:var(--blue-soft);">Relire le contrat avant de signer</a>.
+    </div>
+    <div style="background:#fff; border-radius:var(--radius-sm); border:1px solid var(--border); touch-action:none;">
+      <canvas id="sign-canvas" width="400" height="160" style="width:100%; height:160px; display:block; cursor:crosshair;"></canvas>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button type="button" class="btn btn-ghost btn-sm" id="sign-clear">Effacer</button>
+    </div>
+    <button type="button" class="btn btn-primary" id="sign-submit" style="width:100%;padding:11px;margin-top:14px;">Valider ma signature</button>
+  </div>
+</div>
+
 <script>
 let currentUser = null;
+let currentProfile = null;
 let edlMissionId = null;
 let edlType = null; // 'avant' | 'apres'
 
@@ -150,13 +189,19 @@ function availableCard(m) {
 function mineCard(m) {
   let actions = '';
   if (m.statut === 'acceptee') {
-    actions = `<div class="actions"><button class="btn btn-primary btn-sm" data-start="${m.id}">Démarrer (état des lieux avant)</button></div>`;
+    actions = `<div class="actions">
+      <button class="btn btn-primary btn-sm" data-start="${m.id}">Démarrer (état des lieux avant)</button>
+      <button class="btn btn-ghost btn-sm" data-withdraw="${m.id}">Me désister</button>
+    </div>`;
   } else if (m.statut === 'en_cours') {
     actions = `<div class="actions"><button class="btn btn-primary btn-sm" data-finish="${m.id}">Clôturer (état des lieux après)</button></div>`;
   }
   const contratLine = m.contrat_url
     ? `<div class="meta"><a href="${m.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">Voir mon contrat (PDF)</a></div>`
     : '';
+  const factureLine = m.facture_url
+    ? `<div class="meta"><a href="${m.facture_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">Voir la facture</a></div>`
+    : (m.statut === 'terminee' ? `<div class="meta">Facture : pas encore ajoutée</div>` : '');
   const noteLine = m.evaluation
     ? `<div class="meta">Note reçue : <strong>${'★'.repeat(m.evaluation.note)}${'☆'.repeat(5 - m.evaluation.note)}</strong></div>` : '';
   return `
@@ -172,6 +217,7 @@ function mineCard(m) {
     </div>
     <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
     ${contratLine}
+    ${factureLine}
     ${noteLine}
     ${actions}
   </div>`;
@@ -209,6 +255,21 @@ async function loadMissions() {
   document.querySelectorAll('[data-finish]').forEach(btn => {
     btn.addEventListener('click', () => openEdl(btn.dataset.finish, 'apres'));
   });
+  document.querySelectorAll('[data-withdraw]').forEach(btn => {
+    btn.addEventListener('click', () => withdrawMission(btn.dataset.withdraw));
+  });
+}
+
+async function withdrawMission(id) {
+  if (!confirm('Confirmer ton désistement ? La mission redeviendra disponible pour les autres prestataires.')) return;
+  const { error } = await supabaseClient
+    .from('missions')
+    .update({ statut: 'disponible', prestataire_id: null, accepted_at: null })
+    .eq('id', id)
+    .eq('prestataire_id', currentUser.id);
+
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadMissions();
 }
 
 async function acceptMission(id) {
@@ -438,7 +499,7 @@ async function init() {
   if (!session) { window.location.href = 'index.html'; return; }
 
   const { data: profile, error } = await supabaseClient
-    .from('profiles').select('role, nom, actif').eq('id', session.user.id).single();
+    .from('profiles').select('*').eq('id', session.user.id).single();
 
   if (error || !profile || profile.role !== 'prestataire') {
     window.location.href = 'index.html';
@@ -452,12 +513,210 @@ async function init() {
   }
 
   currentUser = session.user;
+  currentProfile = profile;
   document.getElementById('who').textContent = profile.nom;
+
+  if (profile.contrat_statut === 'en_attente_signature' && profile.contrat_url) {
+    document.getElementById('contrat-banner-voir').href = profile.contrat_url;
+    document.getElementById('contrat-banner').classList.remove('hidden');
+  }
+
   loadMissions();
 }
+
+/* --- Signature du contrat --- */
+document.getElementById('contrat-banner-signer').addEventListener('click', openSignModal);
+
+let signCtx = null;
+let signDrawing = false;
+let signHasDrawn = false;
+
+function setupCanvas() {
+  const canvas = document.getElementById('sign-canvas');
+  const ratio = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * ratio;
+  canvas.height = 160 * ratio;
+  signCtx = canvas.getContext('2d');
+  signCtx.scale(ratio, ratio);
+  signCtx.lineWidth = 2;
+  signCtx.lineCap = 'round';
+  signCtx.strokeStyle = '#16181D';
+  signHasDrawn = false;
+}
+
+function pointerPos(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+}
+
+function bindCanvasEvents() {
+  const canvas = document.getElementById('sign-canvas');
+  const start = (e) => {
+    e.preventDefault();
+    signDrawing = true;
+    const p = pointerPos(canvas, e);
+    signCtx.beginPath();
+    signCtx.moveTo(p.x, p.y);
+  };
+  const move = (e) => {
+    if (!signDrawing) return;
+    e.preventDefault();
+    const p = pointerPos(canvas, e);
+    signCtx.lineTo(p.x, p.y);
+    signCtx.stroke();
+    signHasDrawn = true;
+  };
+  const end = () => { signDrawing = false; };
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+}
+
+function openSignModal() {
+  document.getElementById('sign-voir-contrat').href = currentProfile.contrat_url || '#';
+  document.getElementById('sign-overlay').classList.remove('hidden');
+  setTimeout(() => { setupCanvas(); bindCanvasEvents(); }, 0);
+}
+document.getElementById('sign-close').addEventListener('click', () => {
+  document.getElementById('sign-overlay').classList.add('hidden');
+});
+document.getElementById('sign-clear').addEventListener('click', () => setupCanvas());
+
+async function loadImageAsDataUrl(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDataUrl) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const dateStr = new Date().toLocaleDateString('fr-FR');
+  const nomSociete = entreprise.nom || 'SBR AUTO';
+  let y = 20;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(`${nomSociete} — Contrat de partenariat prestataire`, 20, y, { maxWidth: 170 });
+  y += 14;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  const lines = [
+    `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
+    `et ${prestataireNom}, ci-après "le Prestataire".`,
+    '',
+    'Il est convenu ce qui suit :',
+    '',
+    'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
+    'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
+    'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
+    '',
+    "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
+    'dates, conditions particulières), généré automatiquement à son acceptation.',
+    '',
+    "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
+    'renseigner un état des lieux avant et après chaque intervention, et à',
+    'respecter les délais convenus.',
+    '',
+    "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
+    'pour chaque mission acceptée.',
+  ];
+  lines.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+
+  y += 10;
+  doc.text(`Fait le ${dateStr}.`, 20, y);
+  y += 16;
+
+  const sigY = y;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Pour la Société', 20, sigY);
+  doc.text('Le Prestataire', 110, sigY);
+  doc.setFont('helvetica', 'normal');
+
+  if (entreprise.signature_url) {
+    try {
+      const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
+      doc.addImage(dataUrl, 'PNG', 20, sigY + 4, 60, 24);
+    } catch (e) { doc.text('(signature)', 20, sigY + 16); }
+  } else {
+    doc.text('(signature manquante)', 20, sigY + 16);
+  }
+
+  if (prestataireSigDataUrl) {
+    doc.addImage(prestataireSigDataUrl, 'PNG', 110, sigY + 4, 60, 24);
+  } else {
+    doc.setTextColor(150);
+    doc.text('En attente de signature', 110, sigY + 16);
+    doc.setTextColor(0);
+  }
+
+  return doc.output('blob');
+}
+
+document.getElementById('sign-submit').addEventListener('click', async () => {
+  if (!signHasDrawn) { alert('Dessine ta signature avant de valider.'); return; }
+
+  const submitBtn = document.getElementById('sign-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Enregistrement...';
+
+  try {
+    const canvas = document.getElementById('sign-canvas');
+    const sigDataUrl = canvas.toDataURL('image/png');
+    const sigBlob = await (await fetch(sigDataUrl)).blob();
+
+    const sigPath = `${currentUser.id}/signature-${Date.now()}.png`;
+    const { error: sigErr } = await supabaseClient.storage.from('signatures').upload(sigPath, sigBlob, { contentType: 'image/png' });
+    if (sigErr) throw sigErr;
+    const { data: sigPub } = supabaseClient.storage.from('signatures').getPublicUrl(sigPath);
+
+    const { data: entreprise } = await supabaseClient.from('entreprise_config').select('*').eq('id', 1).maybeSingle();
+
+    const pdfBlob = await buildContratCadrePdf(currentProfile.nom, entreprise || { nom: 'SBR AUTO' }, sigDataUrl);
+    const pdfPath = `${currentUser.id}/cadre-signe-${Date.now()}.pdf`;
+    const { error: pdfErr } = await supabaseClient.storage.from('contrats').upload(pdfPath, pdfBlob, { contentType: 'application/pdf' });
+    if (pdfErr) throw pdfErr;
+    const { data: pdfPub } = supabaseClient.storage.from('contrats').getPublicUrl(pdfPath);
+
+    const { error: rpcErr } = await supabaseClient.rpc('signer_contrat_cadre', {
+      p_contrat_url: pdfPub.publicUrl,
+      p_signature_url: sigPub.publicUrl
+    });
+    if (rpcErr) throw rpcErr;
+
+    document.getElementById('sign-overlay').classList.add('hidden');
+    document.getElementById('contrat-banner').classList.add('hidden');
+    currentProfile.contrat_statut = 'signe';
+    alert('Contrat signé, merci !');
+  } catch (err) {
+    alert("Erreur lors de la signature : " + (err.message || err));
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Valider ma signature';
+  }
+});
 
 init();
 </script>
 
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>

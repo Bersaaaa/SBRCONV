@@ -56,20 +56,13 @@ button { font-family: inherit; cursor: pointer; }
 .brand { display: flex; align-items: center; gap: 10px; }
 
 .brand .mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: linear-gradient(150deg, #6FA8DB 0%, #3E6E9E 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'IBM Plex Mono', monospace;
-  font-weight: 600;
-  font-size: 12.5px;
-  color: #0F1D2A;
-  letter-spacing: -0.02em;
-  box-shadow: 0 2px 6px rgba(62,110,158,0.35);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
   flex-shrink: 0;
+  display: block;
 }
 
 .brand .names { display: flex; flex-direction: column; line-height: 1.2; }
@@ -284,7 +277,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .login-box { width: 100%; max-width: 380px; }
 .login-box .brand { margin-bottom: 28px; }
-.login-box .brand .mark { width: 40px; height: 40px; font-size: 15px; border-radius: 10px; }
+.login-box .brand .mark { width: 44px; height: 44px; }
 .login-box .brand h1 { font-size: 17px; }
 .login-box .intro { color: var(--text-muted); font-size: 13.5px; margin-bottom: 26px; line-height: 1.5; }
 

@@ -5,14 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SBR AUTO — Admin</title>
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
 </head>
 <body>
 
 <div class="topbar">
   <div class="brand">
-    <span class="mark">SB</span>
+    <img src="icons/logo-mark.png" class="mark" alt="SBR AUTO">
     <div class="names">
       <h1>SBR AUTO</h1>
       <span class="sub">Admin</span>
@@ -33,6 +38,7 @@
   <div class="page-head">
     <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
     <div style="display:flex; gap:8px;">
+      <button class="btn" id="entreprise-btn">Paramètres entreprise</button>
       <button class="btn" id="prestataires-btn">Prestataires</button>
       <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
     </div>
@@ -104,6 +110,34 @@
         <input type="number" id="f-tva" step="0.1" value="20" style="max-width:120px;">
       </div>
       <button type="submit" class="btn btn-primary">Créer la mission</button>
+    </form>
+  </div>
+
+  <!-- Panneau paramètres entreprise -->
+  <div class="panel hidden" id="entreprise-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>Paramètres entreprise</strong>
+      <button class="btn btn-ghost" id="close-entreprise-btn">Fermer</button>
+    </div>
+    <div class="field-hint" style="margin-bottom:14px;">
+      Utilisés pour générer les contrats (mission et contrat cadre). La signature est apposée automatiquement en tant que "Pour la Société".
+    </div>
+    <form id="entreprise-form">
+      <div class="field">
+        <label>Nom de la société</label>
+        <input type="text" id="ent-nom" placeholder="SBR AUTO" required>
+      </div>
+      <div class="field">
+        <label>Adresse</label>
+        <input type="text" id="ent-adresse" placeholder="12 rue Example, 69000 Lyon">
+      </div>
+      <div class="field">
+        <label>Signature de la société (image)</label>
+        <div id="ent-sig-preview" style="margin-bottom:8px;"></div>
+        <input type="file" id="ent-sig-fichier" accept="image/*">
+        <div class="field-hint">Une photo ou un scan de ta signature sur fond clair, format PNG/JPG.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Enregistrer</button>
     </form>
   </div>
 
@@ -266,7 +300,10 @@ function missionCard(m) {
   if (m.statut === 'disponible') {
     actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button></div>`;
   } else if (m.statut === 'acceptee' || m.statut === 'en_cours') {
-    actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button></div>`;
+    actions = `<div class="actions">
+      <button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button>
+      <button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button>
+    </div>`;
   } else if (m.statut === 'terminee') {
     actions = `<div class="actions">
       <button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button>
@@ -343,6 +380,7 @@ async function loadMissions() {
 }
 
 async function updateStatut(id, statut) {
+  if (statut === 'annulee' && !confirm("Confirmer l'annulation de cette mission ?")) return;
   const { error } = await supabaseClient.from('missions').update({ statut }).eq('id', id);
   if (error) { alert("Erreur : " + error.message); return; }
   loadMissions();
@@ -548,6 +586,152 @@ document.getElementById('mission-form').addEventListener('submit', async (e) => 
   loadMissions();
 });
 
+/* --- Paramètres entreprise --- */
+let entrepriseConfig = { nom: 'SBR AUTO', adresse: '', signature_url: null };
+
+async function loadEntreprise() {
+  const { data } = await supabaseClient.from('entreprise_config').select('*').eq('id', 1).maybeSingle();
+  if (data) entrepriseConfig = data;
+  document.getElementById('ent-nom').value = entrepriseConfig.nom || 'SBR AUTO';
+  document.getElementById('ent-adresse').value = entrepriseConfig.adresse || '';
+  document.getElementById('ent-sig-preview').innerHTML = entrepriseConfig.signature_url
+    ? `<img src="${entrepriseConfig.signature_url}" style="max-height:60px; background:#fff; border-radius:4px; padding:4px;">`
+    : `<span class="field-hint">Aucune signature enregistrée pour l'instant.</span>`;
+}
+
+document.getElementById('entreprise-btn').addEventListener('click', () => {
+  document.getElementById('entreprise-panel').classList.remove('hidden');
+  loadEntreprise();
+});
+document.getElementById('close-entreprise-btn').addEventListener('click', () => {
+  document.getElementById('entreprise-panel').classList.add('hidden');
+});
+
+document.getElementById('entreprise-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('ent-sig-fichier').files[0];
+  let signatureUrl = entrepriseConfig.signature_url || null;
+
+  if (file) {
+    const path = `entreprise/signature-${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabaseClient.storage.from('signatures').upload(path, file);
+    if (upErr) { alert("Erreur d'envoi de la signature : " + upErr.message); return; }
+    const { data } = supabaseClient.storage.from('signatures').getPublicUrl(path);
+    signatureUrl = data.publicUrl;
+  }
+
+  const payload = {
+    id: 1,
+    nom: document.getElementById('ent-nom').value,
+    adresse: document.getElementById('ent-adresse').value || null,
+    signature_url: signatureUrl,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await supabaseClient.from('entreprise_config').upsert(payload);
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  document.getElementById('entreprise-panel').classList.add('hidden');
+  loadEntreprise();
+});
+
+async function loadImageAsDataUrl(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDataUrl) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const dateStr = new Date().toLocaleDateString('fr-FR');
+  const nomSociete = entreprise.nom || 'SBR AUTO';
+  let y = 20;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(`${nomSociete} — Contrat de partenariat prestataire`, 20, y, { maxWidth: 170 });
+  y += 14;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  const lines = [
+    `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
+    `et ${prestataireNom}, ci-après "le Prestataire".`,
+    '',
+    'Il est convenu ce qui suit :',
+    '',
+    'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
+    'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
+    'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
+    '',
+    "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
+    'dates, conditions particulières), généré automatiquement à son acceptation.',
+    '',
+    "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
+    'renseigner un état des lieux avant et après chaque intervention, et à',
+    'respecter les délais convenus.',
+    '',
+    "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
+    'pour chaque mission acceptée.',
+  ];
+  lines.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+
+  y += 10;
+  doc.text(`Fait le ${dateStr}.`, 20, y);
+  y += 16;
+
+  const sigY = y;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Pour la Société', 20, sigY);
+  doc.text('Le Prestataire', 110, sigY);
+  doc.setFont('helvetica', 'normal');
+
+  if (entreprise.signature_url) {
+    try {
+      const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
+      doc.addImage(dataUrl, 'PNG', 20, sigY + 4, 60, 24);
+    } catch (e) { doc.text('(signature)', 20, sigY + 16); }
+  } else {
+    doc.text('(signature manquante)', 20, sigY + 16);
+  }
+
+  if (prestataireSigDataUrl) {
+    doc.addImage(prestataireSigDataUrl, 'PNG', 110, sigY + 4, 60, 24);
+  } else {
+    doc.setTextColor(150);
+    doc.text('En attente de signature', 110, sigY + 16);
+    doc.setTextColor(0);
+  }
+
+  return doc.output('blob');
+}
+
+async function genererEtEnvoyerContrat(prestataireId, prestataireNom) {
+  if (!entrepriseConfig.signature_url) {
+    alert('Renseigne d\'abord la signature de ta société dans "Paramètres entreprise".');
+    return;
+  }
+  const blob = await buildContratCadrePdf(prestataireNom, entrepriseConfig, null);
+  const path = `${prestataireId}/cadre-${Date.now()}.pdf`;
+  const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, blob, { contentType: 'application/pdf' });
+  if (upErr) { alert("Erreur : " + upErr.message); return; }
+  const { data } = supabaseClient.storage.from('contrats').getPublicUrl(path);
+
+  const { error } = await supabaseClient.from('profiles').update({
+    contrat_url: data.publicUrl,
+    contrat_statut: 'en_attente_signature',
+    contrat_ajoute_le: new Date().toISOString()
+  }).eq('id', prestataireId);
+
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadPrestataires();
+}
+
 /* --- Prestataires --- */
 const SPECIALITES = ['convoyage', 'nettoyage', 'inspection', 'autre'];
 
@@ -562,9 +746,13 @@ function prestataireRow(p) {
     ? `<span class="statut-pill">★ ${p._avgNote.toFixed(1)}/5 (${p._noteCount} mission${p._noteCount > 1 ? 's' : ''} notée${p._noteCount > 1 ? 's' : ''})</span>`
     : `<span class="statut-pill">Pas encore noté</span>`;
 
-  const contratLine = p.contrat_url
-    ? `<div class="meta">Contrat cadre : <a href="${p.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">signé, voir le PDF</a></div>`
-    : `<div class="meta">Contrat cadre : non déposé</div>`;
+  const CONTRAT_STATUT_LABEL = {
+    non_envoye: 'Contrat cadre : non envoyé',
+    en_attente_signature: 'Contrat cadre : en attente de signature du prestataire',
+    signe: `Contrat cadre : signé${p.contrat_signe_le ? ' le ' + formatDate(p.contrat_signe_le) : ''}`
+  };
+  const contratLine = `<div class="meta">${CONTRAT_STATUT_LABEL[p.contrat_statut] || CONTRAT_STATUT_LABEL.non_envoye}
+    ${p.contrat_url ? ` — <a href="${p.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">voir le PDF</a>` : ''}</div>`;
 
   return `
   <div class="card" data-prestataire-row="${p.id}">
@@ -580,7 +768,10 @@ function prestataireRow(p) {
     <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">${checks}</div>
     <div class="actions">
       <button class="btn btn-primary btn-sm" data-save-prestataire="${p.id}">Enregistrer</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-contrat-cadre="${p.id}" data-contrat-cadre-url="${p.contrat_url || ''}">${p.contrat_url ? 'Remplacer le contrat' : 'Ajouter le contrat'}</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-generer-contrat="${p.id}" data-generer-contrat-nom="${p.nom}">
+        ${p.contrat_statut === 'non_envoye' ? 'Générer et envoyer le contrat' : 'Régénérer et renvoyer'}
+      </button>
+      <button class="btn btn-ghost btn-sm" type="button" data-contrat-cadre="${p.id}">Déposer un PDF déjà signé</button>
     </div>
   </div>`;
 }
@@ -606,7 +797,15 @@ async function loadPrestataires() {
     btn.addEventListener('click', () => savePrestataire(btn.dataset.savePrestataire));
   });
   document.querySelectorAll('[data-contrat-cadre]').forEach(btn => {
-    btn.addEventListener('click', () => openContratCadre(btn.dataset.contratCadre, btn.dataset.contratCadreUrl));
+    btn.addEventListener('click', () => openContratCadre(btn.dataset.contratCadre));
+  });
+  document.querySelectorAll('[data-generer-contrat]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Génération...';
+      await genererEtEnvoyerContrat(btn.dataset.genererContrat, btn.dataset.genererContratNom);
+      btn.disabled = false;
+    });
   });
 }
 
@@ -632,12 +831,10 @@ document.getElementById('close-prestataires-btn').addEventListener('click', () =
 
 let contratCadrePrestataireId = null;
 
-function openContratCadre(prestataireId, url) {
+function openContratCadre(prestataireId) {
   contratCadrePrestataireId = prestataireId;
   document.getElementById('contrat-cadre-fichier').value = '';
-  document.getElementById('contrat-cadre-existing').innerHTML = url
-    ? `<div class="meta" style="margin-bottom:14px;">Contrat actuel : <a href="${url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">ouvrir le PDF</a></div>`
-    : '';
+  document.getElementById('contrat-cadre-existing').innerHTML = '';
   document.getElementById('contrat-cadre-overlay').classList.remove('hidden');
 }
 document.getElementById('contrat-cadre-close').addEventListener('click', () => {
@@ -653,7 +850,7 @@ document.getElementById('contrat-cadre-form').addEventListener('submit', async (
   submitBtn.disabled = true;
   submitBtn.textContent = 'Envoi du PDF...';
 
-  const path = `${contratCadrePrestataireId}/cadre-${Date.now()}-${file.name}`;
+  const path = `${contratCadrePrestataireId}/cadre-signe-${Date.now()}-${file.name}`;
   const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, file);
   if (upErr) {
     alert("Erreur d'envoi du fichier : " + upErr.message);
@@ -664,7 +861,12 @@ document.getElementById('contrat-cadre-form').addEventListener('submit', async (
   const { data } = supabaseClient.storage.from('contrats').getPublicUrl(path);
 
   const { error } = await supabaseClient.from('profiles')
-    .update({ contrat_url: data.publicUrl, contrat_ajoute_le: new Date().toISOString() })
+    .update({
+      contrat_url: data.publicUrl,
+      contrat_statut: 'signe',
+      contrat_ajoute_le: new Date().toISOString(),
+      contrat_signe_le: new Date().toISOString()
+    })
     .eq('id', contratCadrePrestataireId);
 
   submitBtn.disabled = false;
@@ -696,10 +898,18 @@ async function init() {
   currentUser = session.user;
   document.getElementById('who').textContent = profile.nom;
   loadMissions();
+  loadEntreprise();
 }
 
 init();
 </script>
 
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
 </body>
 </html>
