@@ -11,6 +11,18 @@ clôture la mission — pas toi — avec un état des lieux (kilométrage,
 carburant, état extérieur/intérieur, commentaire, photos) à chaque étape.
 Tu peux consulter ces états des lieux depuis ton tableau de bord admin.
 
+## Structure des pages
+
+- **`index.html`** — le site vitrine public (accueil, services, zone
+  d'intervention, tarifs, professionnels, devenir prestataire, FAQ). C'est
+  la page que voient tes visiteurs sur ton nom de domaine.
+- **`connexion.html`** — connexion admin/prestataire (avant : c'était
+  `index.html`). Accessible depuis le bouton "Se connecter" du site vitrine.
+- **`inscription.html`** — auto-inscription prestataire.
+- **`admin.html`** / **`prestataire.html`** — les espaces une fois connecté.
+- **`mentions-legales.html`** — mentions légales, va chercher automatiquement
+  le nom/SIRET/adresse dans "Paramètres entreprise".
+
 ## 1. Créer le projet Supabase
 
 **Nouvelle installation ?** Va sur supabase.com → New project (dédié à SBR CONVOYAGE,
@@ -28,7 +40,8 @@ pas encore passées :
 5. `migration_v6.sql` (désistement d'un prestataire avant démarrage d'une mission) — si pas encore fait.
 6. `migration_v7.sql` (auto-inscription prestataire, suivi des relances automatiques) — si pas encore fait.
 7. `migration_v8.sql` (score de fiabilité, tableau de bord, suivi des paiements) — si pas encore fait.
-8. `migration_v9.sql` (informations légales : SIRET, forme juridique, adresse).
+8. `migration_v9.sql` (informations légales : SIRET, forme juridique, adresse) — si pas encore fait.
+9. `migration_v10.sql` (documents prestataire : Kbis, assurance pro, CNI, permis — stockage privé).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -202,6 +215,35 @@ toutes les missions concernées, pas un par mission).
    Project Settings → API).
 
 ## Fonctionnement
+
+- **Nouveau logo et PWA renforcée** : ton logo (voiture + route) est
+  utilisé partout. Les balises manquantes pour une vraie installation en
+  application sur iPhone ont été ajoutées (`apple-mobile-web-app-capable`
+  etc.) — sans elles, "Ajouter à l'écran d'accueil" ouvrait juste Safari
+  au lieu d'une vraie appli plein écran. Ça concerne `admin.html` et
+  `prestataire.html` comme les autres pages : les deux sont prêts à être
+  utilisés comme une appli téléphone une fois installés.
+- **Documents prestataire** : depuis son espace, bouton **"Mes
+  documents"** → le prestataire renseigne son nom de société / site web
+  (optionnels) et dépose Kbis, attestation d'assurance pro, CNI, permis
+  de conduire. Ces fichiers sont stockés dans un bucket **privé** —
+  contrairement aux photos d'état des lieux ou aux factures, ils ne sont
+  JAMAIS accessibles publiquement : seuls le prestataire concerné et toi
+  (admin) pouvez les ouvrir (lien à durée limitée généré à la demande).
+  Depuis le panneau **Prestataires**, tu vois en un coup d'œil quels
+  documents sont déposés ou manquants pour chacun.
+- **Site vitrine repensé** : couleurs harmonisées avec le nouveau logo
+  (doré plutôt qu'orange), mise en avant du processus de vérification des
+  prestataires (Kbis, assurance, identité, permis) comme argument de
+  confiance auprès des professionnels — dans l'esprit des plateformes de
+  convoyage B2B établies.
+- **Mentions légales** : nouvelle page, liée depuis le pied de page du
+  site vitrine, avec les informations de la société récupérées
+  automatiquement depuis "Paramètres entreprise".
+  ⚠️ C'est un modèle standard, pas un avis juridique — fais-le relire par
+  un professionnel, notamment la partie hébergement si tu changes
+  d'hébergeur. Le lien "CGV" du pied de page n'est pas encore relié (page
+  à rédiger séparément, avec tes conditions de vente réelles).
 
 - **Correctif important** : le bug "Erreur lors de la signature : Incomplete
   or corrupt PNG file" est corrigé. Il venait du format de la signature de

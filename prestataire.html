@@ -9,6 +9,10 @@
 <meta name="theme-color" content="#16181D">
 <link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
 <link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBR CONVOYAGE">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
@@ -24,6 +28,7 @@
     </div>
   </div>
   <div class="right">
+    <button class="btn btn-ghost" id="mes-documents-btn">Mes documents</button>
     <span id="who"></span>
     <button class="btn btn-ghost" id="logout-btn">Déconnexion</button>
   </div>
@@ -120,6 +125,33 @@
 </div>
 
 <!-- Modale signature du contrat -->
+<!-- Modale Mes documents -->
+<div class="hidden" id="documents-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;overflow:auto;">
+  <div class="panel" style="max-width:480px;width:100%;max-height:90vh;overflow:auto;">
+    <div class="panel-head">
+      <strong>Mes documents</strong>
+      <button class="btn btn-ghost" id="documents-close" type="button">Fermer</button>
+    </div>
+    <form id="documents-form">
+      <div class="field">
+        <label>Nom de société (si applicable)</label>
+        <input type="text" id="doc-nom-societe">
+      </div>
+      <div class="field">
+        <label>Site web (si applicable)</label>
+        <input type="text" id="doc-site-web">
+      </div>
+      <hr class="divider">
+      <div class="field-hint" style="margin-bottom:12px;">
+        Ces documents restent privés : seuls toi et l'administrateur pouvez
+        les consulter.
+      </div>
+      <div id="doc-rows"></div>
+      <button type="submit" class="btn btn-primary" id="documents-submit" style="width:100%;padding:11px;margin-top:8px;">Enregistrer</button>
+    </form>
+  </div>
+</div>
+
 <div class="hidden" id="sign-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;">
   <div class="panel" style="max-width:460px;width:100%;max-height:90vh;overflow:auto;">
     <div class="panel-head">
@@ -574,24 +606,24 @@ document.getElementById('edl-form').addEventListener('submit', async (e) => {
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
+  window.location.href = 'connexion.html';
 });
 
 async function init() {
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { window.location.href = 'index.html'; return; }
+  if (!session) { window.location.href = 'connexion.html'; return; }
 
   const { data: profile, error } = await supabaseClient
     .from('profiles').select('*').eq('id', session.user.id).single();
 
   if (error || !profile || profile.role !== 'prestataire') {
-    window.location.href = 'index.html';
+    window.location.href = 'connexion.html';
     return;
   }
   if (!profile.actif) {
     alert("Ton compte est désactivé.");
     await supabaseClient.auth.signOut();
-    window.location.href = 'index.html';
+    window.location.href = 'connexion.html';
     return;
   }
 
@@ -904,6 +936,93 @@ document.getElementById('sign-submit').addEventListener('click', async () => {
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Valider ma signature';
+  }
+});
+
+/* --- Mes documents --- */
+const DOC_TYPES = [
+  { key: 'kbis', label: 'Extrait Kbis (ou justificatif équivalent)' },
+  { key: 'assurance', label: "Attestation d'assurance responsabilité civile pro" },
+  { key: 'cni', label: "Carte nationale d'identité" },
+  { key: 'permis', label: 'Permis de conduire' },
+];
+
+function renderDocRows() {
+  const wrap = document.getElementById('doc-rows');
+  wrap.innerHTML = DOC_TYPES.map(d => {
+    const path = currentProfile['doc_' + d.key + '_path'];
+    return `
+      <div class="field" style="border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px;">
+        <label style="margin-bottom:4px;">${d.label}</label>
+        <div class="meta" style="margin-bottom:6px;">${path ? 'Déposé ✓' : 'Pas encore déposé'}${path ? ` — <a href="#" data-view-doc="${d.key}" style="color:var(--blue-soft);">Voir</a>` : ''}</div>
+        <input type="file" data-doc-file="${d.key}" accept="image/*,application/pdf">
+      </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('[data-view-doc]').forEach(a => {
+    a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const path = currentProfile['doc_' + a.dataset.viewDoc + '_path'];
+      const { data, error } = await supabaseClient.storage.from('documents').createSignedUrl(path, 3600);
+      if (error) { alert("Impossible d'ouvrir le document."); return; }
+      window.open(data.signedUrl, '_blank');
+    });
+  });
+}
+
+function openDocuments() {
+  document.getElementById('doc-nom-societe').value = currentProfile.nom_societe || '';
+  document.getElementById('doc-site-web').value = currentProfile.site_web || '';
+  renderDocRows();
+  document.getElementById('documents-overlay').classList.remove('hidden');
+}
+document.getElementById('mes-documents-btn').addEventListener('click', openDocuments);
+document.getElementById('documents-close').addEventListener('click', () => {
+  document.getElementById('documents-overlay').classList.add('hidden');
+});
+
+document.getElementById('documents-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submitBtn = document.getElementById('documents-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Enregistrement...';
+
+  try {
+    const paths = {};
+    for (const d of DOC_TYPES) {
+      const input = document.querySelector(`[data-doc-file="${d.key}"]`);
+      const file = input.files[0];
+      if (file) {
+        const path = `${currentUser.id}/${d.key}-${Date.now()}-${file.name}`;
+        const { error } = await supabaseClient.storage.from('documents').upload(path, file);
+        if (error) throw error;
+        paths[d.key] = path;
+      } else {
+        paths[d.key] = null;
+      }
+    }
+
+    const { error: rpcErr } = await supabaseClient.rpc('update_mes_documents_prestataire', {
+      p_nom_societe: document.getElementById('doc-nom-societe').value || null,
+      p_site_web: document.getElementById('doc-site-web').value || null,
+      p_doc_kbis_path: paths.kbis,
+      p_doc_assurance_path: paths.assurance,
+      p_doc_cni_path: paths.cni,
+      p_doc_permis_path: paths.permis
+    });
+    if (rpcErr) throw rpcErr;
+
+    currentProfile.nom_societe = document.getElementById('doc-nom-societe').value || null;
+    currentProfile.site_web = document.getElementById('doc-site-web').value || null;
+    Object.keys(paths).forEach(k => { if (paths[k]) currentProfile['doc_' + k + '_path'] = paths[k]; });
+
+    document.getElementById('documents-overlay').classList.add('hidden');
+    alert('Documents enregistrés.');
+  } catch (err) {
+    alert('Erreur : ' + (err.message || err));
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Enregistrer';
   }
 });
 

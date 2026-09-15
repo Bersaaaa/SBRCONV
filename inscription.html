@@ -9,6 +9,10 @@
 <meta name="theme-color" content="#16181D">
 <link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
 <link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBR CONVOYAGE">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 </head>
@@ -49,6 +53,14 @@
           </div>
         </div>
         <div class="field">
+          <label for="nom_societe">Nom de société (si applicable)</label>
+          <input type="text" id="nom_societe" placeholder="Optionnel">
+        </div>
+        <div class="field">
+          <label for="site_web">Site web (si applicable)</label>
+          <input type="text" id="site_web" placeholder="Optionnel">
+        </div>
+        <div class="field">
           <label for="email">Email</label>
           <input type="email" id="email" required autocomplete="username">
         </div>
@@ -71,15 +83,20 @@
           </div>
           <div class="field-hint">L'administrateur pourra les ajuster à la validation de ton compte.</div>
         </div>
+        <div class="field-hint" style="margin-bottom:14px;">
+          Une fois ton compte validé, tu pourras déposer tes documents
+          (Kbis, assurance pro, CNI, permis de conduire) depuis ton espace,
+          dans "Mes documents".
+        </div>
         <button type="submit" class="btn btn-primary" id="inscription-submit" style="width:100%;padding:11px;">Envoyer ma demande</button>
       </form>
     </div>
 
     <div style="text-align:center; margin-top:16px;">
-      <a href="index.html" style="color:var(--text-muted); font-size:13px;">Déjà inscrit ? Se connecter</a>
+      <a href="connexion.html" style="color:var(--text-muted); font-size:13px;">Déjà inscrit ? Se connecter</a>
     </div>
     <div style="text-align:center; margin-top:10px;">
-      <a href="vitrine.html" style="color:var(--text-faint); font-size:12.5px;">← Retour au site</a>
+      <a href="index.html" style="color:var(--text-faint); font-size:12.5px;">← Retour au site</a>
     </div>
   </div>
 </div>
@@ -144,6 +161,8 @@ form.addEventListener('submit', async (e) => {
   const nom = document.getElementById('nom').value.trim();
   const telephone = document.getElementById('telephone').value.trim();
   const adresse = document.getElementById('adresse').value.trim();
+  const nom_societe = document.getElementById('nom_societe').value.trim();
+  const site_web = document.getElementById('site_web').value.trim();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const specialites = ['convoyage', 'nettoyage', 'inspection']
@@ -160,6 +179,8 @@ form.addEventListener('submit', async (e) => {
       nom,
       telephone,
       adresse: adresse || null,
+      nom_societe: nom_societe || null,
+      site_web: site_web || null,
       email,
       specialites,
       actif: false,
