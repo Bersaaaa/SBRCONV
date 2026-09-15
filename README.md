@@ -25,7 +25,9 @@ pas encore passées :
 2. `migration_v3.sql` (notation des prestataires, contrats PDF automatiques) — si pas encore fait.
 3. `migration_v4.sql` (contrat cadre par prestataire, date d'arrivée pour les convoyages) — si pas encore fait.
 4. `migration_v5.sql` (paramètres entreprise, signature électronique du contrat cadre) — si pas encore fait.
-5. `migration_v6.sql` (désistement d'un prestataire avant démarrage d'une mission).
+5. `migration_v6.sql` (désistement d'un prestataire avant démarrage d'une mission) — si pas encore fait.
+6. `migration_v7.sql` (auto-inscription prestataire, suivi des relances automatiques) — si pas encore fait.
+7. `migration_v8.sql` (score de fiabilité, tableau de bord, suivi des paiements).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -41,9 +43,17 @@ Ensuite dans les deux cas :
 
 ## 3. Créer un compte prestataire
 
-Même procédure : **Authentication → Users → Add user**, puis une ligne dans
-`profiles` avec `role = prestataire`. Communique-lui l'email + mot de passe
-(tu peux les changer plus tard depuis le dashboard Supabase).
+Deux façons :
+- **Auto-inscription (recommandé)** : envoie à tes prestataires le lien
+  `inscription.html` de ton site déployé. Ils créent leur compte eux-mêmes
+  (nom, téléphone, email, mot de passe, spécialités souhaitées). Le compte
+  reste bloqué tant que tu ne l'as pas validé : dans `admin.html`, panneau
+  **Prestataires**, section "Demandes en attente" en haut → bouton
+  "Approuver" (ou "Refuser" pour supprimer la demande).
+- **Création manuelle** : dashboard Supabase → **Authentication → Users →
+  Add user**, puis une ligne dans `profiles` avec `role = prestataire`.
+  Communique-lui l'email + mot de passe (tu peux les changer plus tard
+  depuis le dashboard Supabase).
 
 Pour désactiver un prestataire sans supprimer son historique : coche/décoche
 "Actif" depuis le panneau **Prestataires** dans `admin.html` (ou directement
@@ -132,7 +142,56 @@ La fonction elle-même sait faire le tri (nouvelle mission vs. mission
 acceptée) à partir de ce qui a changé — pas besoin de filtrer côté
 webhook.
 
+### Relance automatique (optionnel, nécessite les emails ci-dessus)
+
+Si une mission reste "disponible" plus de 24h sans prestataire, un email
+récapitulatif peut t'être envoyé automatiquement (un seul email groupant
+toutes les missions concernées, pas un par mission).
+
+1. Déploie la seconde fonction : `supabase functions deploy relance-missions`
+   (elle réutilise les mêmes secrets RESEND_API_KEY / RESEND_FROM).
+2. Contrairement à `notify-mission`, celle-ci doit tourner sur un **planning
+   régulier** plutôt que sur un événement. Le plus simple : Dashboard
+   Supabase → **Edge Functions → relance-missions → Cron** (si disponible
+   sur ton plan) → programme-la par exemple toutes les heures
+   (`0 * * * *`).
+   Si l'option Cron n'apparaît pas sur les fonctions, active plutôt les
+   extensions **pg_cron** et **pg_net** (Database → Extensions), puis dans
+   le SQL Editor :
+   ```sql
+   select cron.schedule(
+     'relance-missions-horaire',
+     '0 * * * *',
+     $$
+     select net.http_post(
+       url := 'https://<ton-project-ref>.supabase.co/functions/v1/relance-missions',
+       headers := jsonb_build_object('Authorization', 'Bearer <ta-service-role-key>')
+     );
+     $$
+   );
+   ```
+   (remplace `<ton-project-ref>` et `<ta-service-role-key>`, trouvable dans
+   Project Settings → API).
+
 ## Fonctionnement
+
+- **Score de fiabilité** : dans le panneau Prestataires, chaque prestataire
+  affiche désormais, en plus de sa note moyenne, un score de fiabilité sur
+  5 qui pénalise les désistements (avant démarrage) et les annulations
+  (mission annulée par toi alors qu'il était déjà assigné). Calcul :
+  note moyenne (ou 5 par défaut) × (1 − taux d'incidents), avec taux
+  d'incidents = (désistements + annulations) / missions acceptées. Ces
+  compteurs se mettent à jour automatiquement (trigger en base), pas
+  besoin d'action de ta part.
+- **Tableau de bord** : bouton en haut de `admin.html` → CA du mois (HT et
+  TTC) sur les missions clôturées, répartition par type, classement des 5
+  prestataires les plus actifs ce mois-ci.
+- **Paiements** : bouton "Paiements" → missions clôturées pas encore
+  payées, groupées par prestataire avec le total dû. Coche les missions
+  réglées puis "Marquer les cochées comme payées", ou "Tout marquer payé"
+  en un clic le lundi une fois les virements faits. Le prestataire voit
+  aussi ce statut ("réglé le JJ/MM" ou "en attente") sur sa propre carte
+  de mission.
 
 - **Toi (admin)** : `admin.html` — tu crées les missions. Le formulaire
   s'adapte au type choisi :
@@ -178,7 +237,20 @@ webhook.
     la mission redevient disponible pour les autres prestataires.
 - Toi (admin), tu peux annuler une mission à tout moment — disponible,
   acceptée ou en cours — via le bouton "Annuler" sur sa carte (une
-  confirmation est demandée).
+  confirmation est demandée). Bouton "Dupliquer" sur chaque mission :
+  pré-remplit le formulaire "Nouvelle mission" avec les mêmes infos (type,
+  titre, véhicule, lieux, prix), dates à vide pour que tu les ressaisisses.
+- **Vue "À traiter"** : bouton en haut de `admin.html` → recense en un
+  coup d'œil les factures manquantes, les notations manquantes, les
+  contrats cadre non signés et les missions disponibles depuis plus de
+  24h, avec une action directe sur chaque ligne (ajouter la facture,
+  noter, renvoyer le contrat...).
+- **Paiement** : les deux contrats (mission et contrat cadre) précisent
+  désormais que le règlement s'effectue chaque lundi, pour les missions
+  clôturées et facturées la semaine précédente.
+- Les PDF générés (contrat de mission, contrat cadre) ont une mise en page
+  plus structurée : bandeau d'en-tête avec logo, sections nettement
+  séparées, pied de page avec date de génération.
 - Tout le monde arrive par `index.html` (connexion), qui redirige
   automatiquement vers le bon espace selon le rôle.
 - Les photos d'état des lieux sont stockées dans le bucket Supabase Storage
@@ -195,7 +267,7 @@ webhook.
   à partir des infos de la mission, sur le même principe que le contrat.
 - Export comptable des missions clôturées + factures (lien possible avec
   SBR COMPTA).
-- Auto-inscription des prestataires avec validation admin (aujourd'hui :
-  création manuelle par toi dans Supabase).
-- Relances automatiques si une mission "disponible" reste longtemps sans
-  prestataire.
+- Recherche/filtre des missions (par prestataire, date, statut).
+- Réinitialisation de mot de passe en autonomie pour les prestataires.
+- Compression des photos avant envoi (plus rapide sur mobile, moins de
+  data).

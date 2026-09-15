@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR AUTO — Inscription prestataire</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="login-screen">
+  <div class="login-box" style="max-width:420px;">
+    <div class="brand">
+      <img src="icons/logo-mark.png" class="mark" alt="SBR AUTO">
+      <div class="names">
+        <h1>SBR AUTO</h1>
+        <span class="sub">Inscription prestataire</span>
+      </div>
+    </div>
+    <div class="intro">
+      Crée ton compte pour proposer tes services de convoyage, nettoyage ou
+      inspection. Ton compte devra être validé par l'administrateur avant
+      de pouvoir accéder aux missions.
+    </div>
+
+    <div class="login-panel">
+      <div id="msg"></div>
+
+      <form id="inscription-form">
+        <div class="field">
+          <label for="nom">Nom et prénom</label>
+          <input type="text" id="nom" required>
+        </div>
+        <div class="field">
+          <label for="telephone">Téléphone</label>
+          <input type="tel" id="telephone" required>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Spécialités souhaitées</label>
+          <div style="display:flex; gap:14px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text-muted); font-weight:500;">
+              <input type="checkbox" id="spec-convoyage" style="width:auto;"> Convoyage
+            </label>
+            <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text-muted); font-weight:500;">
+              <input type="checkbox" id="spec-nettoyage" style="width:auto;"> Nettoyage
+            </label>
+            <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text-muted); font-weight:500;">
+              <input type="checkbox" id="spec-inspection" style="width:auto;"> Inspection
+            </label>
+          </div>
+          <div class="field-hint">L'administrateur pourra les ajuster à la validation de ton compte.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="inscription-submit" style="width:100%;padding:11px;">Envoyer ma demande</button>
+      </form>
+    </div>
+
+    <div style="text-align:center; margin-top:16px;">
+      <a href="index.html" style="color:var(--text-muted); font-size:13px;">Déjà inscrit ? Se connecter</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('inscription-form');
+const msgEl = document.getElementById('msg');
+
+function showMsg(text, type) {
+  msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const submitBtn = document.getElementById('inscription-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Envoi en cours...';
+
+  const nom = document.getElementById('nom').value.trim();
+  const telephone = document.getElementById('telephone').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const specialites = ['convoyage', 'nettoyage', 'inspection']
+    .filter(s => document.getElementById('spec-' + s).checked);
+
+  try {
+    const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
+    if (signUpError) throw signUpError;
+    if (!signUpData.user) throw new Error("Impossible de créer le compte.");
+
+    const { error: profileError } = await supabaseClient.from('profiles').insert({
+      id: signUpData.user.id,
+      role: 'prestataire',
+      nom,
+      telephone,
+      email,
+      specialites,
+      actif: false,
+      en_attente_validation: true
+    });
+    if (profileError) throw profileError;
+
+    form.classList.add('hidden');
+    showMsg("Demande envoyée ! Si ton email n'était pas encore confirmé, vérifie ta boîte mail. L'administrateur doit maintenant valider ton compte avant que tu puisses accéder aux missions.", 'ok');
+  } catch (err) {
+    showMsg("Erreur : " + (err.message || err), 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Envoyer ma demande';
+  }
+});
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

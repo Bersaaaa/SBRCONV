@@ -204,6 +204,10 @@ function mineCard(m) {
     : (m.statut === 'terminee' ? `<div class="meta">Facture : pas encore ajoutée</div>` : '');
   const noteLine = m.evaluation
     ? `<div class="meta">Note reçue : <strong>${'★'.repeat(m.evaluation.note)}${'☆'.repeat(5 - m.evaluation.note)}</strong></div>` : '';
+  const paiementLine = m.statut === 'terminee'
+    ? (m.paye ? `<div class="meta">Paiement : <strong>réglé${m.paye_le ? ' le ' + formatDate(m.paye_le) : ''}</strong></div>`
+              : `<div class="meta">Paiement : en attente (prochain lundi)</div>`)
+    : '';
   return `
   <div class="card">
     <div class="row1">
@@ -218,6 +222,7 @@ function mineCard(m) {
     <div class="prix mono">${m.prix_ht.toFixed(2).replace('.', ',')} €<span class="devise-label">HT</span></div>
     ${contratLine}
     ${factureLine}
+    ${paiementLine}
     ${noteLine}
     ${actions}
   </div>`;
@@ -291,41 +296,104 @@ async function acceptMission(id) {
   loadMissions();
 }
 
-function buildContratPdf(mission, prestataireNom) {
+const PDF_MARGIN = 20;
+const PDF_WIDTH = 210;
+
+async function loadLocalLogoDataUrl() {
+  try { return await loadImageAsDataUrl('icons/icon-512.png'); }
+  catch (e) { return null; }
+}
+
+function pdfHeader(doc, logoDataUrl, title, subtitle) {
+  doc.setFillColor(22, 24, 29);
+  doc.rect(0, 0, PDF_WIDTH, 32, 'F');
+  const textX = logoDataUrl ? PDF_MARGIN + 24 : PDF_MARGIN;
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, 'PNG', PDF_MARGIN, 6, 20, 20);
+  }
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(title, textX, 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(subtitle, textX, 23);
+  doc.setTextColor(0, 0, 0);
+  return 44;
+}
+
+function pdfSectionTitle(doc, text, y) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(78, 130, 175);
+  doc.text(text.toUpperCase(), PDF_MARGIN, y);
+  doc.setDrawColor(225, 225, 225);
+  doc.line(PDF_MARGIN, y + 2.5, PDF_WIDTH - PDF_MARGIN, y + 2.5);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10.5);
+  return y + 10;
+}
+
+function pdfKeyValues(doc, pairs, y) {
+  doc.setFontSize(10.5);
+  pairs.forEach(([k, v]) => {
+    if (!v) return;
+    doc.setFont('helvetica', 'bold');
+    doc.text(k + ' :', PDF_MARGIN, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(v), PDF_MARGIN + 44, y, { maxWidth: PDF_WIDTH - PDF_MARGIN * 2 - 44 });
+    y += 7.5;
+  });
+  return y;
+}
+
+function pdfParagraph(doc, lines, y) {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10.5);
+  lines.forEach(line => { doc.text(line, PDF_MARGIN, y); y += 6.3; });
+  return y;
+}
+
+function pdfFooter(doc, dateStr) {
+  doc.setDrawColor(230, 230, 230);
+  doc.line(PDF_MARGIN, 280, PDF_WIDTH - PDF_MARGIN, 280);
+  doc.setFontSize(8.3);
+  doc.setTextColor(150);
+  doc.text(`SBR AUTO — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
+  doc.setTextColor(0);
+}
+
+async function buildContratPdf(mission, prestataireNom) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const prixTtc = mission.prix_ht * (1 + (mission.taux_tva || 0) / 100);
   const dateStr = new Date().toLocaleDateString('fr-FR');
-  let y = 20;
+  const logo = await loadLocalLogoDataUrl();
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('SBR AUTO — Contrat de mission', 20, y);
-  y += 12;
+  let y = pdfHeader(doc, logo, 'Contrat de mission', 'SBR AUTO — convoyage, nettoyage, inspection');
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  const lines = [
-    `Mission : ${mission.titre}`,
-    `Type : ${TYPE_LABEL[mission.type] || mission.type}`,
-    mission.vehicule ? `Véhicule : ${mission.vehicule}` : null,
-    mission.lieu_depart || mission.lieu_arrivee
-      ? `Trajet : ${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}` : null,
-    mission.date_prevue ? `Date prévue : ${formatDate(mission.date_prevue)}` : null,
-    '',
-    `Prestataire : ${prestataireNom}`,
-    `Rémunération : ${mission.prix_ht.toFixed(2)} € HT`
-      + (mission.taux_tva > 0 ? ` (TVA ${mission.taux_tva}%, soit ${prixTtc.toFixed(2)} € TTC)` : ' (sans TVA)'),
-  ].filter(Boolean);
+  y = pdfSectionTitle(doc, 'Mission', y);
+  y = pdfKeyValues(doc, [
+    ['Titre', mission.titre],
+    ['Type', TYPE_LABEL[mission.type] || mission.type],
+    ['Véhicule', mission.vehicule],
+    ['Trajet', (mission.lieu_depart || mission.lieu_arrivee) ? `${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}` : null],
+    ['Date prévue', mission.date_prevue ? formatDate(mission.date_prevue) : null],
+  ], y);
 
-  lines.forEach(line => { doc.text(line, 20, y); y += 8; });
+  y += 4;
+  y = pdfSectionTitle(doc, 'Prestataire & rémunération', y);
+  y = pdfKeyValues(doc, [
+    ['Prestataire', prestataireNom],
+    ['Rémunération', mission.prix_ht.toFixed(2) + ' € HT'
+      + (mission.taux_tva > 0 ? ` (TVA ${mission.taux_tva}%, soit ${prixTtc.toFixed(2)} € TTC)` : ' (sans TVA)')],
+    ['Paiement', 'Chaque lundi, sur les missions clôturées et facturées la semaine précédente'],
+  ], y);
 
-  y += 6;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Conditions', 20, y);
-  y += 8;
-  doc.setFont('helvetica', 'normal');
-  const conditions = [
+  y += 4;
+  y = pdfSectionTitle(doc, 'Conditions', y);
+  y = pdfParagraph(doc, [
     "Le prestataire s'engage à réaliser la mission décrite ci-dessus pour",
     "le compte de SBR AUTO, dans les délais convenus, et à assurer la",
     "bonne exécution de la prestation.",
@@ -334,22 +402,23 @@ function buildContratPdf(mission, prestataireNom) {
     "extérieur/intérieur, photos) doit être renseigné par le prestataire",
     "avant le démarrage et après la clôture de la mission.",
     "",
-    "Le règlement s'effectue selon les modalités convenues entre SBR AUTO",
-    "et le prestataire, sur présentation de la facture correspondante.",
-  ];
-  conditions.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+    "Le règlement s'effectue chaque lundi pour les missions clôturées et",
+    "facturées, sur présentation de la facture correspondante.",
+  ], y);
 
-  y += 10;
-  doc.text(`Fait le ${dateStr}. Accepté électroniquement par ${prestataireNom}`, 20, y);
-  y += 6.5;
-  doc.text(`via la plateforme SBR AUTO.`, 20, y);
+  y += 8;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(10);
+  doc.text(`Fait le ${dateStr}. Accepté électroniquement par ${prestataireNom} via la plateforme SBR AUTO.`, PDF_MARGIN, y, { maxWidth: PDF_WIDTH - PDF_MARGIN * 2 });
+
+  pdfFooter(doc, dateStr);
 
   return doc.output('blob');
 }
 
 async function generateContrat(mission) {
   try {
-    const blob = buildContratPdf(mission, document.getElementById('who').textContent);
+    const blob = await buildContratPdf(mission, document.getElementById('who').textContent);
     const path = `${mission.id}/contrat-${Date.now()}.pdf`;
     const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, blob, {
       contentType: 'application/pdf'
@@ -604,54 +673,65 @@ async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDa
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('fr-FR');
   const nomSociete = entreprise.nom || 'SBR AUTO';
-  let y = 20;
+  const logo = await loadLocalLogoDataUrl();
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(`${nomSociete} — Contrat de partenariat prestataire`, 20, y, { maxWidth: 170 });
-  y += 14;
+  let y = pdfHeader(doc, logo, 'Contrat de partenariat prestataire', nomSociete + (entreprise.adresse ? ' — ' + entreprise.adresse : ''));
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  const lines = [
+  y = pdfSectionTitle(doc, 'Parties', y);
+  y = pdfParagraph(doc, [
     `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
     `et ${prestataireNom}, ci-après "le Prestataire".`,
-    '',
-    'Il est convenu ce qui suit :',
-    '',
+  ], y);
+
+  y += 4;
+  y = pdfSectionTitle(doc, 'Objet', y);
+  y = pdfParagraph(doc, [
     'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
     'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
     'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
     '',
     "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
     'dates, conditions particulières), généré automatiquement à son acceptation.',
-    '',
+  ], y);
+
+  y += 4;
+  y = pdfSectionTitle(doc, 'Engagements', y);
+  y = pdfParagraph(doc, [
     "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
     'renseigner un état des lieux avant et après chaque intervention, et à',
     'respecter les délais convenus.',
     '',
     "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
     'pour chaque mission acceptée.',
-  ];
-  lines.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+  ], y);
 
-  y += 10;
-  doc.text(`Fait le ${dateStr}.`, 20, y);
-  y += 16;
+  y += 4;
+  y = pdfSectionTitle(doc, 'Paiement', y);
+  y = pdfParagraph(doc, [
+    'Le règlement des missions réalisées s\'effectue chaque lundi, pour',
+    "l'ensemble des missions clôturées et facturées au cours de la semaine",
+    'précédente.',
+  ], y);
+
+  y += 6;
+  doc.setFontSize(10);
+  doc.text(`Fait le ${dateStr}.`, PDF_MARGIN, y);
+  y += 18;
 
   const sigY = y;
   doc.setFont('helvetica', 'bold');
-  doc.text('Pour la Société', 20, sigY);
+  doc.setFontSize(10.5);
+  doc.text('Pour la Société', PDF_MARGIN, sigY);
   doc.text('Le Prestataire', 110, sigY);
   doc.setFont('helvetica', 'normal');
 
   if (entreprise.signature_url) {
     try {
       const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
-      doc.addImage(dataUrl, 'PNG', 20, sigY + 4, 60, 24);
-    } catch (e) { doc.text('(signature)', 20, sigY + 16); }
+      doc.addImage(dataUrl, 'PNG', PDF_MARGIN, sigY + 4, 60, 24);
+    } catch (e) { doc.text('(signature)', PDF_MARGIN, sigY + 16); }
   } else {
-    doc.text('(signature manquante)', 20, sigY + 16);
+    doc.text('(signature manquante)', PDF_MARGIN, sigY + 16);
   }
 
   if (prestataireSigDataUrl) {
@@ -661,6 +741,8 @@ async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDa
     doc.text('En attente de signature', 110, sigY + 16);
     doc.setTextColor(0);
   }
+
+  pdfFooter(doc, dateStr);
 
   return doc.output('blob');
 }

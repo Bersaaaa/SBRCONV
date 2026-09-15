@@ -39,6 +39,10 @@
         <button type="submit" class="btn btn-primary" style="width:100%;padding:11px;">Se connecter</button>
       </form>
     </div>
+
+    <div style="text-align:center; margin-top:16px;">
+      <a href="inscription.html" style="color:var(--text-muted); font-size:13px;">Pas encore de compte ? S'inscrire comme prestataire</a>
+    </div>
   </div>
 </div>
 
@@ -53,12 +57,17 @@ function showMsg(text, type) {
 async function redirectByRole(userId) {
   const { data: profile, error } = await supabaseClient
     .from('profiles')
-    .select('role, actif')
+    .select('role, actif, en_attente_validation')
     .eq('id', userId)
     .single();
 
   if (error || !profile) {
     showMsg("Compte non configuré. Contacte l'administrateur.", 'error');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  if (profile.en_attente_validation) {
+    showMsg("Ton inscription est bien reçue et en attente de validation par l'administrateur. Reviens un peu plus tard.", 'ok');
     await supabaseClient.auth.signOut();
     return;
   }

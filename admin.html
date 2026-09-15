@@ -38,6 +38,9 @@
   <div class="page-head">
     <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
     <div style="display:flex; gap:8px;">
+      <button class="btn" id="paiements-btn">Paiements</button>
+      <button class="btn" id="dashboard-btn">Tableau de bord</button>
+      <button class="btn" id="a-traiter-btn">À traiter</button>
       <button class="btn" id="entreprise-btn">Paramètres entreprise</button>
       <button class="btn" id="prestataires-btn">Prestataires</button>
       <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
@@ -113,6 +116,36 @@
     </form>
   </div>
 
+  <!-- Panneau paiements -->
+  <div class="panel hidden" id="paiements-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>Paiements — à régler</strong>
+      <button class="btn btn-ghost" id="close-paiements-btn">Fermer</button>
+    </div>
+    <div class="field-hint" style="margin-bottom:14px;">
+      Missions clôturées non encore marquées comme payées, groupées par prestataire. Coche chaque mission réglée, ou "Tout marquer payé" le lundi une fois le virement fait.
+    </div>
+    <div id="paiements-content"></div>
+  </div>
+
+  <!-- Panneau tableau de bord -->
+  <div class="panel hidden" id="dashboard-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>Tableau de bord — ce mois-ci</strong>
+      <button class="btn btn-ghost" id="close-dashboard-btn">Fermer</button>
+    </div>
+    <div id="dashboard-content"></div>
+  </div>
+
+  <!-- Panneau À traiter -->
+  <div class="panel hidden" id="a-traiter-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong>À traiter</strong>
+      <button class="btn btn-ghost" id="close-a-traiter-btn">Fermer</button>
+    </div>
+    <div id="a-traiter-content"></div>
+  </div>
+
   <!-- Panneau paramètres entreprise -->
   <div class="panel hidden" id="entreprise-panel" style="margin-bottom:20px;">
     <div class="panel-head">
@@ -147,9 +180,10 @@
       <strong>Prestataires</strong>
       <button class="btn btn-ghost" id="close-prestataires-btn">Fermer</button>
     </div>
+    <div id="prestataires-pending"></div>
     <div class="field-hint" style="margin-bottom:14px;">
       Un prestataire ne voit que les missions disponibles dans les spécialités cochées ci-dessous.
-      Les comptes se créent dans le Dashboard Supabase (Authentication → Users), voir README.
+      Les comptes peuvent aussi être créés dans le Dashboard Supabase (Authentication → Users), voir README.
     </div>
     <div id="prestataires-list"></div>
   </div>
@@ -257,6 +291,7 @@
 
 <script>
 let ttcMode = false;
+let missionsById = {};
 let currentUser = null;
 let factureMissionId = null;
 
@@ -298,18 +333,25 @@ function missionCard(m) {
 
   let actions = '';
   if (m.statut === 'disponible') {
-    actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button></div>`;
+    actions = `<div class="actions">
+      <button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button>
+      <button class="btn btn-ghost btn-sm" data-duplicate="${m.id}">Dupliquer</button>
+    </div>`;
   } else if (m.statut === 'acceptee' || m.statut === 'en_cours') {
     actions = `<div class="actions">
       <button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button>
       <button class="btn btn-ghost btn-sm" data-cancel="${m.id}">Annuler</button>
+      <button class="btn btn-ghost btn-sm" data-duplicate="${m.id}">Dupliquer</button>
     </div>`;
   } else if (m.statut === 'terminee') {
     actions = `<div class="actions">
       <button class="btn btn-ghost btn-sm" data-edl="${m.id}">État des lieux</button>
       <button class="btn btn-ghost btn-sm" data-facture="${m.id}" data-facture-num="${m.facture_numero || ''}" data-facture-url="${m.facture_url || ''}">${m.facture_url ? 'Voir facture' : 'Ajouter facture'}</button>
       ${m.prestataire_id ? `<button class="btn btn-ghost btn-sm" data-note="${m.id}" data-note-prestataire="${m.prestataire_id}">${m.evaluation ? 'Modifier la note' : 'Noter'}</button>` : ''}
+      <button class="btn btn-ghost btn-sm" data-duplicate="${m.id}">Dupliquer</button>
     </div>`;
+  } else {
+    actions = `<div class="actions"><button class="btn btn-ghost btn-sm" data-duplicate="${m.id}">Dupliquer</button></div>`;
   }
 
   const contratLine = m.contrat_url
@@ -350,6 +392,9 @@ async function loadMissions() {
   (evals || []).forEach(ev => { evalByMission[ev.mission_id] = ev; });
   data.forEach(m => { m.evaluation = evalByMission[m.id] || null; });
 
+  missionsById = {};
+  data.forEach(m => { missionsById[m.id] = m; });
+
   const disponibles = data.filter(m => m.statut === 'disponible');
   const encours = data.filter(m => m.statut === 'acceptee' || m.statut === 'en_cours');
   const cloturees = data.filter(m => m.statut === 'terminee' || m.statut === 'annulee');
@@ -376,6 +421,9 @@ async function loadMissions() {
   });
   document.querySelectorAll('[data-note]').forEach(btn => {
     btn.addEventListener('click', () => openNote(btn.dataset.note, btn.dataset.notePrestataire, evalByMission[btn.dataset.note]));
+  });
+  document.querySelectorAll('[data-duplicate]').forEach(btn => {
+    btn.addEventListener('click', () => duplicateMission(btn.dataset.duplicate));
   });
 }
 
@@ -521,6 +569,30 @@ document.getElementById('new-mission-btn').addEventListener('click', () => {
   document.getElementById('form-panel').classList.remove('hidden');
   updateFormForType(document.getElementById('f-type').value);
 });
+
+function duplicateMission(id) {
+  const m = missionsById[id];
+  if (!m) return;
+
+  document.getElementById('form-panel').classList.remove('hidden');
+  document.getElementById('f-type').value = m.type;
+  document.getElementById('f-vehicule').value = m.vehicule || '';
+  document.getElementById('f-titre').value = m.titre || '';
+  document.getElementById('f-description').value = m.description || '';
+  document.getElementById('f-depart').value = m.lieu_depart || '';
+  document.getElementById('f-arrivee').value = m.lieu_arrivee || '';
+  document.getElementById('f-date').value = '';
+  document.getElementById('f-date-arrivee').value = '';
+  document.getElementById('f-prix').value = m.prix_ht;
+  const tvaActive = m.taux_tva > 0;
+  document.getElementById('f-tva-active').checked = tvaActive;
+  document.getElementById('f-tva-wrap').classList.toggle('hidden', !tvaActive);
+  if (tvaActive) document.getElementById('f-tva').value = m.taux_tva;
+
+  updateFormForType(m.type);
+  document.getElementById('f-titre').focus();
+  document.getElementById('form-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 document.getElementById('close-form-btn').addEventListener('click', () => {
   document.getElementById('form-panel').classList.add('hidden');
 });
@@ -586,6 +658,257 @@ document.getElementById('mission-form').addEventListener('submit', async (e) => 
   loadMissions();
 });
 
+/* --- Paiements --- */
+async function loadPaiements() {
+  const content = document.getElementById('paiements-content');
+  content.innerHTML = '<div class="empty">Chargement...</div>';
+
+  const { data: missions, error } = await supabaseClient
+    .from('missions')
+    .select('*, prestataire:profiles!missions_prestataire_id_fkey(nom)')
+    .eq('statut', 'terminee')
+    .eq('paye', false)
+    .order('termine_at', { ascending: true });
+
+  if (error) { content.innerHTML = '<div class="empty">Erreur de chargement.</div>'; return; }
+
+  const parPrestataire = {};
+  (missions || []).forEach(m => {
+    const key = m.prestataire_id || 'sans-prestataire';
+    const nom = m.prestataire ? m.prestataire.nom : 'Sans prestataire';
+    parPrestataire[key] = parPrestataire[key] || { nom, missions: [] };
+    parPrestataire[key].missions.push(m);
+  });
+
+  const groupes = Object.entries(parPrestataire);
+  if (!groupes.length) {
+    content.innerHTML = '<div class="empty">Rien à payer pour le moment — tout est réglé.</div>';
+    return;
+  }
+
+  content.innerHTML = groupes.map(([prestataireId, g]) => {
+    const total = g.missions.reduce((s, m) => s + Number(m.prix_ht || 0), 0);
+    const lignes = g.missions.map(m => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" data-paye-mission="${m.id}" style="width:auto;">
+          <span>${m.titre} <span class="mono" style="color:var(--text-muted);">— ${Number(m.prix_ht).toFixed(2)} €</span></span>
+        </label>
+      </div>`).join('');
+
+    return `
+      <div class="card" style="margin-bottom:14px;" data-prestataire-paiement="${prestataireId}">
+        <div class="row1">
+          <p class="titre" style="margin:0;">${g.nom}</p>
+          <span class="prix mono" style="font-size:14px; margin:0;">${total.toFixed(2).replace('.', ',')} € dû</span>
+        </div>
+        ${lignes}
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" data-marquer-selection="${prestataireId}">Marquer les cochées comme payées</button>
+          <button class="btn btn-ghost btn-sm" data-marquer-tout="${prestataireId}">Tout marquer payé</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  content.querySelectorAll('[data-marquer-selection]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = document.querySelector(`[data-prestataire-paiement="${btn.dataset.marquerSelection}"]`);
+      const ids = [...card.querySelectorAll('[data-paye-mission]:checked')].map(c => c.dataset.payeMission);
+      if (!ids.length) { alert('Coche au moins une mission.'); return; }
+      marquerPaye(ids);
+    });
+  });
+  content.querySelectorAll('[data-marquer-tout]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = document.querySelector(`[data-prestataire-paiement="${btn.dataset.marquerTout}"]`);
+      const ids = [...card.querySelectorAll('[data-paye-mission]')].map(c => c.dataset.payeMission);
+      marquerPaye(ids);
+    });
+  });
+}
+
+async function marquerPaye(ids) {
+  const { error } = await supabaseClient
+    .from('missions')
+    .update({ paye: true, paye_le: new Date().toISOString() })
+    .in('id', ids);
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadPaiements();
+}
+
+document.getElementById('paiements-btn').addEventListener('click', () => {
+  document.getElementById('paiements-panel').classList.remove('hidden');
+  loadPaiements();
+});
+document.getElementById('close-paiements-btn').addEventListener('click', () => {
+  document.getElementById('paiements-panel').classList.add('hidden');
+});
+
+/* --- Tableau de bord --- */
+async function loadDashboard() {
+  const content = document.getElementById('dashboard-content');
+  content.innerHTML = '<div class="empty">Chargement...</div>';
+
+  const now = new Date();
+  const debutMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const { data: missions } = await supabaseClient
+    .from('missions')
+    .select('*, prestataire:profiles!missions_prestataire_id_fkey(nom)')
+    .eq('statut', 'terminee')
+    .gte('termine_at', debutMois);
+
+  const list = missions || [];
+  const caHt = list.reduce((sum, m) => sum + Number(m.prix_ht || 0), 0);
+  const caTtc = list.reduce((sum, m) => sum + Number(m.prix_ht || 0) * (1 + (m.taux_tva || 0) / 100), 0);
+
+  const parType = {};
+  list.forEach(m => { parType[m.type] = (parType[m.type] || 0) + 1; });
+  const parTypeHtml = Object.keys(TYPE_LABEL).map(t => `
+    <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px;">
+      <span>${TYPE_LABEL[t]}</span><span class="mono">${parType[t] || 0}</span>
+    </div>`).join('');
+
+  const parPrestataire = {};
+  list.forEach(m => {
+    if (!m.prestataire_id) return;
+    const nom = m.prestataire ? m.prestataire.nom : '?';
+    parPrestataire[m.prestataire_id] = parPrestataire[m.prestataire_id] || { nom, count: 0 };
+    parPrestataire[m.prestataire_id].count += 1;
+  });
+  const classement = Object.values(parPrestataire).sort((a, b) => b.count - a.count).slice(0, 5);
+  const classementHtml = classement.length
+    ? classement.map((p, i) => `
+        <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px;">
+          <span>${i + 1}. ${p.nom}</span><span class="mono">${p.count} mission${p.count > 1 ? 's' : ''}</span>
+        </div>`).join('')
+    : '<div class="empty" style="padding:10px 0;">Aucune mission clôturée ce mois-ci.</div>';
+
+  content.innerHTML = `
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px;">
+      <div class="card">
+        <div class="meta">CA du mois (HT)</div>
+        <div class="prix mono">${caHt.toFixed(2).replace('.', ',')} €</div>
+      </div>
+      <div class="card">
+        <div class="meta">CA du mois (TTC)</div>
+        <div class="prix mono">${caTtc.toFixed(2).replace('.', ',')} €</div>
+      </div>
+      <div class="card">
+        <div class="meta">Missions clôturées</div>
+        <div class="prix mono">${list.length}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:8px;">Missions par type</div>
+      ${parTypeHtml}
+    </div>
+    <div>
+      <div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:8px;">Prestataires les plus actifs</div>
+      ${classementHtml}
+    </div>`;
+}
+
+document.getElementById('dashboard-btn').addEventListener('click', () => {
+  document.getElementById('dashboard-panel').classList.remove('hidden');
+  loadDashboard();
+});
+document.getElementById('close-dashboard-btn').addEventListener('click', () => {
+  document.getElementById('dashboard-panel').classList.add('hidden');
+});
+
+/* --- À traiter --- */
+function aTraiterSection(title, items, emptyLabel) {
+  const body = items.length
+    ? items.join('')
+    : `<div class="empty" style="padding:14px 4px;">${emptyLabel}</div>`;
+  return `
+    <div style="margin-bottom:18px;">
+      <div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:8px;">${title} ${items.length ? `(${items.length})` : ''}</div>
+      ${body}
+    </div>`;
+}
+
+async function loadATraiter() {
+  const content = document.getElementById('a-traiter-content');
+  content.innerHTML = '<div class="empty">Chargement...</div>';
+
+  const { data: missions } = await supabaseClient
+    .from('missions')
+    .select('*, prestataire:profiles!missions_prestataire_id_fkey(nom)');
+  const { data: evals } = await supabaseClient.from('evaluations').select('mission_id');
+  const { data: prestataires } = await supabaseClient
+    .from('profiles').select('*').eq('role', 'prestataire').eq('actif', true);
+
+  const evalMissionIds = new Set((evals || []).map(e => e.mission_id));
+  const now = Date.now();
+
+  const facturesManquantes = (missions || [])
+    .filter(m => m.statut === 'terminee' && !m.facture_url)
+    .map(m => `
+      <div class="card">
+        <div class="row1"><span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span></div>
+        <p class="titre">${m.titre}</p>
+        <div class="meta">${m.prestataire ? m.prestataire.nom : ''}</div>
+        <div class="actions"><button class="btn btn-primary btn-sm" data-at-facture="${m.id}">Ajouter la facture</button></div>
+      </div>`);
+
+  const notesManquantes = (missions || [])
+    .filter(m => m.statut === 'terminee' && m.prestataire_id && !evalMissionIds.has(m.id))
+    .map(m => `
+      <div class="card">
+        <div class="row1"><span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span></div>
+        <p class="titre">${m.titre}</p>
+        <div class="meta">${m.prestataire ? m.prestataire.nom : ''}</div>
+        <div class="actions"><button class="btn btn-primary btn-sm" data-at-note="${m.id}" data-at-note-prestataire="${m.prestataire_id}">Noter</button></div>
+      </div>`);
+
+  const contratsNonSignes = (prestataires || [])
+    .filter(p => p.contrat_statut !== 'signe')
+    .map(p => `
+      <div class="card">
+        <p class="titre">${p.nom}</p>
+        <div class="meta">${p.contrat_statut === 'en_attente_signature' ? 'En attente de signature du prestataire' : 'Contrat pas encore envoyé'}</div>
+        <div class="actions"><button class="btn btn-primary btn-sm" data-at-contrat="${p.id}" data-at-contrat-nom="${p.nom}">${p.contrat_statut === 'non_envoye' ? 'Générer et envoyer' : 'Régénérer et renvoyer'}</button></div>
+      </div>`);
+
+  const missionsStagnantes = (missions || [])
+    .filter(m => m.statut === 'disponible' && (now - new Date(m.created_at).getTime()) > 24 * 60 * 60 * 1000)
+    .map(m => `
+      <div class="card">
+        <div class="row1"><span class="tag tag-${m.type}">${TYPE_LABEL[m.type]}</span></div>
+        <p class="titre">${m.titre}</p>
+        <div class="meta">Publiée le ${formatDate(m.created_at)}, toujours sans prestataire</div>
+      </div>`);
+
+  content.innerHTML =
+    aTraiterSection('Factures manquantes', facturesManquantes, 'Aucune facture en attente.') +
+    aTraiterSection('Notations manquantes', notesManquantes, 'Tout est noté.') +
+    aTraiterSection('Contrats cadre non signés', contratsNonSignes, 'Tous les prestataires actifs ont signé.') +
+    aTraiterSection('Missions disponibles depuis plus de 24h', missionsStagnantes, 'Rien ne traîne.');
+
+  content.querySelectorAll('[data-at-facture]').forEach(btn => {
+    btn.addEventListener('click', () => openFacture(btn.dataset.atFacture, '', ''));
+  });
+  content.querySelectorAll('[data-at-note]').forEach(btn => {
+    btn.addEventListener('click', () => openNote(btn.dataset.atNote, btn.dataset.atNotePrestataire, null));
+  });
+  content.querySelectorAll('[data-at-contrat]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await genererEtEnvoyerContrat(btn.dataset.atContrat, btn.dataset.atContratNom);
+      loadATraiter();
+    });
+  });
+}
+
+document.getElementById('a-traiter-btn').addEventListener('click', () => {
+  document.getElementById('a-traiter-panel').classList.remove('hidden');
+  loadATraiter();
+});
+document.getElementById('close-a-traiter-btn').addEventListener('click', () => {
+  document.getElementById('a-traiter-panel').classList.add('hidden');
+});
+
 /* --- Paramètres entreprise --- */
 let entrepriseConfig = { nom: 'SBR AUTO', adresse: '', signature_url: null };
 
@@ -645,59 +968,125 @@ async function loadImageAsDataUrl(url) {
   });
 }
 
+const PDF_MARGIN = 20;
+const PDF_WIDTH = 210;
+
+async function loadLocalLogoDataUrl() {
+  try { return await loadImageAsDataUrl('icons/icon-512.png'); }
+  catch (e) { return null; }
+}
+
+function pdfHeader(doc, logoDataUrl, title, subtitle) {
+  doc.setFillColor(22, 24, 29);
+  doc.rect(0, 0, PDF_WIDTH, 32, 'F');
+  const textX = logoDataUrl ? PDF_MARGIN + 24 : PDF_MARGIN;
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, 'PNG', PDF_MARGIN, 6, 20, 20);
+  }
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(title, textX, 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(subtitle, textX, 23);
+  doc.setTextColor(0, 0, 0);
+  return 44;
+}
+
+function pdfSectionTitle(doc, text, y) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(78, 130, 175);
+  doc.text(text.toUpperCase(), PDF_MARGIN, y);
+  doc.setDrawColor(225, 225, 225);
+  doc.line(PDF_MARGIN, y + 2.5, PDF_WIDTH - PDF_MARGIN, y + 2.5);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10.5);
+  return y + 10;
+}
+
+function pdfParagraph(doc, lines, y) {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10.5);
+  lines.forEach(line => { doc.text(line, PDF_MARGIN, y); y += 6.3; });
+  return y;
+}
+
+function pdfFooter(doc, dateStr) {
+  doc.setDrawColor(230, 230, 230);
+  doc.line(PDF_MARGIN, 280, PDF_WIDTH - PDF_MARGIN, 280);
+  doc.setFontSize(8.3);
+  doc.setTextColor(150);
+  doc.text(`SBR AUTO — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
+  doc.setTextColor(0);
+}
+
 async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDataUrl) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('fr-FR');
   const nomSociete = entreprise.nom || 'SBR AUTO';
-  let y = 20;
+  const logo = await loadLocalLogoDataUrl();
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(`${nomSociete} — Contrat de partenariat prestataire`, 20, y, { maxWidth: 170 });
-  y += 14;
+  let y = pdfHeader(doc, logo, 'Contrat de partenariat prestataire', nomSociete + (entreprise.adresse ? ' — ' + entreprise.adresse : ''));
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  const lines = [
+  y = pdfSectionTitle(doc, 'Parties', y);
+  y = pdfParagraph(doc, [
     `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
     `et ${prestataireNom}, ci-après "le Prestataire".`,
-    '',
-    'Il est convenu ce qui suit :',
-    '',
+  ], y);
+
+  y += 4;
+  y = pdfSectionTitle(doc, 'Objet', y);
+  y = pdfParagraph(doc, [
     'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
     'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
     'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
     '',
     "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
     'dates, conditions particulières), généré automatiquement à son acceptation.',
-    '',
+  ], y);
+
+  y += 4;
+  y = pdfSectionTitle(doc, 'Engagements', y);
+  y = pdfParagraph(doc, [
     "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
     'renseigner un état des lieux avant et après chaque intervention, et à',
     'respecter les délais convenus.',
     '',
     "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
     'pour chaque mission acceptée.',
-  ];
-  lines.forEach(line => { doc.text(line, 20, y); y += 6.5; });
+  ], y);
 
-  y += 10;
-  doc.text(`Fait le ${dateStr}.`, 20, y);
-  y += 16;
+  y += 4;
+  y = pdfSectionTitle(doc, 'Paiement', y);
+  y = pdfParagraph(doc, [
+    'Le règlement des missions réalisées s\'effectue chaque lundi, pour',
+    "l'ensemble des missions clôturées et facturées au cours de la semaine",
+    'précédente.',
+  ], y);
+
+  y += 6;
+  doc.setFontSize(10);
+  doc.text(`Fait le ${dateStr}.`, PDF_MARGIN, y);
+  y += 18;
 
   const sigY = y;
   doc.setFont('helvetica', 'bold');
-  doc.text('Pour la Société', 20, sigY);
+  doc.setFontSize(10.5);
+  doc.text('Pour la Société', PDF_MARGIN, sigY);
   doc.text('Le Prestataire', 110, sigY);
   doc.setFont('helvetica', 'normal');
 
   if (entreprise.signature_url) {
     try {
       const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
-      doc.addImage(dataUrl, 'PNG', 20, sigY + 4, 60, 24);
-    } catch (e) { doc.text('(signature)', 20, sigY + 16); }
+      doc.addImage(dataUrl, 'PNG', PDF_MARGIN, sigY + 4, 60, 24);
+    } catch (e) { doc.text('(signature)', PDF_MARGIN, sigY + 16); }
   } else {
-    doc.text('(signature manquante)', 20, sigY + 16);
+    doc.text('(signature manquante)', PDF_MARGIN, sigY + 16);
   }
 
   if (prestataireSigDataUrl) {
@@ -707,6 +1096,8 @@ async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDa
     doc.text('En attente de signature', 110, sigY + 16);
     doc.setTextColor(0);
   }
+
+  pdfFooter(doc, dateStr);
 
   return doc.output('blob');
 }
@@ -746,6 +1137,15 @@ function prestataireRow(p) {
     ? `<span class="statut-pill">★ ${p._avgNote.toFixed(1)}/5 (${p._noteCount} mission${p._noteCount > 1 ? 's' : ''} notée${p._noteCount > 1 ? 's' : ''})</span>`
     : `<span class="statut-pill">Pas encore noté</span>`;
 
+  const accepted = p.missions_acceptees_total || 0;
+  const incidents = (p.missions_desistees_total || 0) + (p.missions_annulees_total || 0);
+  const tauxIncidents = accepted > 0 ? Math.min(incidents / accepted, 1) : 0;
+  const noteBase = p._avgNote || 5;
+  const scoreFiabilite = accepted > 0 ? Math.max(0, noteBase * (1 - tauxIncidents)) : null;
+  const fiabiliteLine = scoreFiabilite !== null
+    ? `<div class="meta">Fiabilité : <strong>${scoreFiabilite.toFixed(1)}/5</strong> — ${accepted} acceptée${accepted > 1 ? 's' : ''}, ${p.missions_desistees_total || 0} désistement${(p.missions_desistees_total || 0) > 1 ? 's' : ''}, ${p.missions_annulees_total || 0} annulée${(p.missions_annulees_total || 0) > 1 ? 's' : ''}</div>`
+    : `<div class="meta">Fiabilité : pas encore assez de données</div>`;
+
   const CONTRAT_STATUT_LABEL = {
     non_envoye: 'Contrat cadre : non envoyé',
     en_attente_signature: 'Contrat cadre : en attente de signature du prestataire',
@@ -764,6 +1164,7 @@ function prestataireRow(p) {
       </label>
     </div>
     ${noteLine}
+    ${fiabiliteLine}
     ${contratLine}
     <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">${checks}</div>
     <div class="actions">
@@ -782,17 +1183,43 @@ async function loadPrestataires() {
 
   if (error) { console.error(error); return; }
 
+  const pending = (data || []).filter(p => p.en_attente_validation);
+  const validated = (data || []).filter(p => !p.en_attente_validation);
+
+  document.getElementById('prestataires-pending').innerHTML = pending.length
+    ? `<div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:8px;">Demandes en attente (${pending.length})</div>`
+      + pending.map(p => `
+        <div class="card">
+          <p class="titre">${p.nom}</p>
+          <div class="meta">
+            ${p.telephone ? p.telephone + '<br>' : ''}
+            ${p.email ? p.email + '<br>' : ''}
+            Spécialités souhaitées : ${(p.specialites || []).map(s => TYPE_LABEL[s]).join(', ') || 'aucune indiquée'}
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary btn-sm" data-approve="${p.id}">Approuver</button>
+            <button class="btn btn-ghost btn-sm" data-reject="${p.id}">Refuser</button>
+          </div>
+        </div>`).join('') + '<hr class="divider">'
+    : '';
+
   const { data: evals } = await supabaseClient.from('evaluations').select('prestataire_id, note');
-  (data || []).forEach(p => {
+  validated.forEach(p => {
     const notes = (evals || []).filter(ev => ev.prestataire_id === p.id).map(ev => ev.note);
     p._noteCount = notes.length;
     p._avgNote = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null;
   });
 
-  document.getElementById('prestataires-list').innerHTML = (data && data.length)
-    ? data.map(prestataireRow).join('')
-    : '<div class="empty">Aucun prestataire pour le moment. Crée un compte dans Supabase (Authentication → Users), voir README.</div>';
+  document.getElementById('prestataires-list').innerHTML = validated.length
+    ? validated.map(prestataireRow).join('')
+    : '<div class="empty">Aucun prestataire validé pour le moment.</div>';
 
+  document.querySelectorAll('[data-approve]').forEach(btn => {
+    btn.addEventListener('click', () => approvePrestataire(btn.dataset.approve));
+  });
+  document.querySelectorAll('[data-reject]').forEach(btn => {
+    btn.addEventListener('click', () => rejectPrestataire(btn.dataset.reject));
+  });
   document.querySelectorAll('[data-save-prestataire]').forEach(btn => {
     btn.addEventListener('click', () => savePrestataire(btn.dataset.savePrestataire));
   });
@@ -817,6 +1244,20 @@ async function savePrestataire(id) {
   const { error } = await supabaseClient
     .from('profiles').update({ specialites, actif }).eq('id', id);
 
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadPrestataires();
+}
+
+async function approvePrestataire(id) {
+  const { error } = await supabaseClient
+    .from('profiles').update({ actif: true, en_attente_validation: false }).eq('id', id);
+  if (error) { alert("Erreur : " + error.message); return; }
+  loadPrestataires();
+}
+
+async function rejectPrestataire(id) {
+  if (!confirm("Refuser et supprimer cette demande d'inscription ?")) return;
+  const { error } = await supabaseClient.from('profiles').delete().eq('id', id);
   if (error) { alert("Erreur : " + error.message); return; }
   loadPrestataires();
 }
