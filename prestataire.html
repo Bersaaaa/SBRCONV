@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SBR AUTO — Prestataire</title>
+<title>SBR CONVOYAGE — Prestataire</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#16181D">
@@ -17,9 +17,9 @@
 
 <div class="topbar">
   <div class="brand">
-    <img src="logo-mark.png" class="mark" alt="SBR AUTO">
+    <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
     <div class="names">
-      <h1>SBR AUTO</h1>
+      <h1>SBR CONVOYAGE</h1>
       <span class="sub">Espace prestataire</span>
     </div>
   </div>
@@ -309,7 +309,7 @@ function pdfHeader(doc, logoDataUrl, title, subtitle) {
   doc.rect(0, 0, PDF_WIDTH, 32, 'F');
   const textX = logoDataUrl ? PDF_MARGIN + 24 : PDF_MARGIN;
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', PDF_MARGIN, 6, 20, 20);
+    doc.addImage(logoDataUrl, pdfImageFormat(logoDataUrl), PDF_MARGIN, 6, 20, 20);
   }
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
@@ -360,7 +360,7 @@ function pdfFooter(doc, dateStr) {
   doc.line(PDF_MARGIN, 280, PDF_WIDTH - PDF_MARGIN, 280);
   doc.setFontSize(8.3);
   doc.setTextColor(150);
-  doc.text(`SBR AUTO — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
+  doc.text(`SBR CONVOYAGE — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
   doc.setTextColor(0);
 }
 
@@ -371,7 +371,7 @@ async function buildContratPdf(mission, prestataireNom) {
   const dateStr = new Date().toLocaleDateString('fr-FR');
   const logo = await loadLocalLogoDataUrl();
 
-  let y = pdfHeader(doc, logo, 'Contrat de mission', 'SBR AUTO — convoyage, nettoyage, inspection');
+  let y = pdfHeader(doc, logo, 'Contrat de mission', 'SBR CONVOYAGE — convoyage, nettoyage, inspection');
 
   y = pdfSectionTitle(doc, 'Mission', y);
   y = pdfKeyValues(doc, [
@@ -379,10 +379,13 @@ async function buildContratPdf(mission, prestataireNom) {
     ['Type', TYPE_LABEL[mission.type] || mission.type],
     ['Véhicule', mission.vehicule],
     ['Trajet', (mission.lieu_depart || mission.lieu_arrivee) ? `${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}` : null],
-    ['Date prévue', mission.date_prevue ? formatDate(mission.date_prevue) : null],
+    ['Date de départ prévue', mission.date_prevue ? formatDate(mission.date_prevue) : null],
+    ['Date d\'arrivée prévue', mission.type === 'convoyage' && mission.date_arrivee_prevue ? formatDate(mission.date_arrivee_prevue) : null],
+    ['Description', mission.description],
   ], y);
 
   y += 4;
+  y = pdfEnsureSpace(doc, y, 30);
   y = pdfSectionTitle(doc, 'Prestataire & rémunération', y);
   y = pdfKeyValues(doc, [
     ['Prestataire', prestataireNom],
@@ -392,26 +395,37 @@ async function buildContratPdf(mission, prestataireNom) {
   ], y);
 
   y += 4;
+  y = pdfEnsureSpace(doc, y, 42);
   y = pdfSectionTitle(doc, 'Conditions', y);
   y = pdfParagraph(doc, [
-    "Le prestataire s'engage à réaliser la mission décrite ci-dessus pour",
-    "le compte de SBR AUTO, dans les délais convenus, et à assurer la",
-    "bonne exécution de la prestation.",
-    "",
+    "Le présent contrat de mission s'inscrit dans le cadre du contrat de",
+    "prestation de services conclu entre le Prestataire et la Société, dont",
+    "il rappelle et complète les conditions pour cette mission précise.",
+    "Le Prestataire agit en toute indépendance, sans lien de subordination.",
+    '',
+    "Le Prestataire s'engage à réaliser la mission décrite ci-dessus avec",
+    "soin, dans les délais convenus, et à assurer la bonne exécution de la",
+    "prestation.",
+    '',
     "Un état des lieux du véhicule (kilométrage, carburant, état",
-    "extérieur/intérieur, photos) doit être renseigné par le prestataire",
+    "extérieur/intérieur, photos) doit être renseigné par le Prestataire",
     "avant le démarrage et après la clôture de la mission.",
-    "",
+    '',
     "Le règlement s'effectue chaque lundi pour les missions clôturées et",
     "facturées, sur présentation de la facture correspondante.",
   ], y);
 
   y += 8;
+  y = pdfEnsureSpace(doc, y, 16);
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(10);
-  doc.text(`Fait le ${dateStr}. Accepté électroniquement par ${prestataireNom} via la plateforme SBR AUTO.`, PDF_MARGIN, y, { maxWidth: PDF_WIDTH - PDF_MARGIN * 2 });
+  doc.text(`Fait le ${dateStr}. Accepté électroniquement par ${prestataireNom} via la plateforme SBR CONVOYAGE.`, PDF_MARGIN, y, { maxWidth: PDF_WIDTH - PDF_MARGIN * 2 });
 
-  pdfFooter(doc, dateStr);
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    pdfFooter(doc, dateStr);
+  }
 
   return doc.output('blob');
 }
@@ -668,54 +682,153 @@ async function loadImageAsDataUrl(url) {
   });
 }
 
-async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDataUrl) {
+function pdfImageFormat(dataUrl) {
+  const match = /^data:image\/(png|jpe?g|webp);/i.exec(dataUrl || '');
+  if (!match) return 'PNG';
+  const type = match[1].toLowerCase();
+  if (type === 'jpg' || type === 'jpeg') return 'JPEG';
+  return type.toUpperCase();
+}
+
+function pdfEnsureSpace(doc, y, needed) {
+  if (y + needed > 272) {
+    doc.addPage();
+    return 20;
+  }
+  return y;
+}
+
+async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataUrl) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('fr-FR');
-  const nomSociete = entreprise.nom || 'SBR AUTO';
+  const nomSociete = entreprise.nom || 'SBR CONVOYAGE';
   const logo = await loadLocalLogoDataUrl();
 
-  let y = pdfHeader(doc, logo, 'Contrat de partenariat prestataire', nomSociete + (entreprise.adresse ? ' — ' + entreprise.adresse : ''));
+  const societeDesc = [nomSociete, entreprise.forme_juridique, entreprise.adresse].filter(Boolean).join(' — ');
+  let y = pdfHeader(doc, logo, 'Contrat de prestation de services', societeDesc);
 
-  y = pdfSectionTitle(doc, 'Parties', y);
+  y = pdfSectionTitle(doc, 'Article 1 — Parties', y);
   y = pdfParagraph(doc, [
-    `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
-    `et ${prestataireNom}, ci-après "le Prestataire".`,
-  ], y);
-
-  y += 4;
-  y = pdfSectionTitle(doc, 'Objet', y);
-  y = pdfParagraph(doc, [
-    'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
-    'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
-    'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
+    `Entre les soussignés :`,
     '',
-    "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
-    'dates, conditions particulières), généré automatiquement à son acceptation.',
+    `${nomSociete}${entreprise.forme_juridique ? ', ' + entreprise.forme_juridique : ''}${entreprise.siret ? ', SIRET ' + entreprise.siret : ''}`,
+    entreprise.adresse ? `dont le siège est situé ${entreprise.adresse},` : '',
+    `ci-après désignée "la Société",`,
+    '',
+    `Et`,
+    '',
+    `${prestataire.nom}${prestataire.statut_juridique ? ', ' + prestataire.statut_juridique : ''}${prestataire.siret ? ', SIRET ' + prestataire.siret : ''}`,
+    prestataire.adresse ? `domicilié(e) ${prestataire.adresse},` : '',
+    `ci-après désigné(e) "le Prestataire",`,
+    '',
+    `Il a été convenu ce qui suit :`,
+  ].filter(l => l !== ''), y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 34);
+  y = pdfSectionTitle(doc, 'Article 2 — Objet', y);
+  y = pdfParagraph(doc, [
+    'Le présent contrat a pour objet de définir les conditions générales dans',
+    'lesquelles le Prestataire est autorisé à réaliser, pour le compte de la',
+    'Société, des missions de convoyage, nettoyage et/ou inspection de',
+    "véhicules, proposées via la plateforme SBR CONVOYAGE.",
+    '',
+    "Chaque mission fait l'objet d'un contrat de mission spécifique (nature,",
+    'lieux, dates, prix), généré automatiquement lors de son acceptation par',
+    'le Prestataire, et qui complète le présent contrat sans s\'y substituer.',
   ], y);
 
   y += 4;
-  y = pdfSectionTitle(doc, 'Engagements', y);
+  y = pdfEnsureSpace(doc, y, 40);
+  y = pdfSectionTitle(doc, 'Article 3 — Indépendance du Prestataire', y);
   y = pdfParagraph(doc, [
-    "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
-    'renseigner un état des lieux avant et après chaque intervention, et à',
-    'respecter les délais convenus.',
+    'Le Prestataire exerce son activité en toute indépendance, en dehors de',
+    "tout lien de subordination avec la Société. Il organise librement son",
+    "emploi du temps et les modalités d'exécution des missions qu'il choisit",
+    "d'accepter, sans horaire imposé. Il demeure à tout moment libre",
+    "d'accepter ou de refuser toute mission proposée.",
+    '',
+    'Sauf disposition contraire mentionnée dans un contrat de mission, le',
+    'Prestataire utilise son propre véhicule et son propre matériel pour',
+    "l'exécution des missions.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 34);
+  y = pdfSectionTitle(doc, 'Article 4 — Obligations des parties', y);
+  y = pdfParagraph(doc, [
+    "Le Prestataire s'engage à exécuter les missions acceptées avec soin et",
+    "professionnalisme, à renseigner un état des lieux du véhicule avant et",
+    "après chaque intervention, et à respecter les délais convenus.",
     '',
     "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
-    'pour chaque mission acceptée.',
+    "pour chaque mission acceptée, dans les conditions de l'article 5.",
   ], y);
 
   y += 4;
-  y = pdfSectionTitle(doc, 'Paiement', y);
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 5 — Rémunération et paiement', y);
   y = pdfParagraph(doc, [
-    'Le règlement des missions réalisées s\'effectue chaque lundi, pour',
+    'Le règlement des missions réalisées intervient chaque lundi, pour',
     "l'ensemble des missions clôturées et facturées au cours de la semaine",
-    'précédente.',
+    "précédente, par virement sur le compte communiqué par le Prestataire.",
   ], y);
 
-  y += 6;
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 6 — Assurance et responsabilité', y);
+  y = pdfParagraph(doc, [
+    'Le Prestataire déclare être couvert par une assurance responsabilité',
+    "civile professionnelle et, le cas échéant, par une assurance adaptée à",
+    "la conduite de véhicules dans le cadre de son activité, et s'engage à",
+    "en justifier à première demande de la Société.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 7 — Confidentialité', y);
+  y = pdfParagraph(doc, [
+    'Le Prestataire s\'engage à conserver strictement confidentielle toute',
+    'information dont il aurait connaissance dans le cadre des missions',
+    '(données clients, tarifs, informations commerciales), pendant la durée',
+    'du contrat et après son terme.',
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 8 — Données personnelles', y);
+  y = pdfParagraph(doc, [
+    "Les données personnelles collectées sont utilisées exclusivement dans",
+    "le cadre de la gestion de la relation contractuelle et des missions. Le",
+    "Prestataire peut exercer ses droits d'accès, de rectification et de",
+    "suppression en contactant la Société.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 9 — Durée et résiliation', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat est conclu pour une durée indéterminée à compter de",
+    "sa signature. Chaque partie peut y mettre fin à tout moment, moyennant",
+    "un préavis de 15 jours notifié par écrit, sans préjudice des missions",
+    "en cours qui devront être menées à leur terme.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 20);
+  y = pdfSectionTitle(doc, 'Article 10 — Droit applicable', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat est soumis au droit français. Tout litige relatif à",
+    "son interprétation ou son exécution relève, à défaut de résolution",
+    "amiable, de la compétence des tribunaux du ressort du siège social de",
+    "la Société.",
+  ], y);
+
+  y += 8;
+  y = pdfEnsureSpace(doc, y, 50);
   doc.setFontSize(10);
-  doc.text(`Fait le ${dateStr}.`, PDF_MARGIN, y);
+  doc.text(`Fait le ${dateStr}, en deux exemplaires.`, PDF_MARGIN, y);
   y += 18;
 
   const sigY = y;
@@ -728,21 +841,25 @@ async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDa
   if (entreprise.signature_url) {
     try {
       const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
-      doc.addImage(dataUrl, 'PNG', PDF_MARGIN, sigY + 4, 60, 24);
+      doc.addImage(dataUrl, pdfImageFormat(dataUrl), PDF_MARGIN, sigY + 4, 60, 24);
     } catch (e) { doc.text('(signature)', PDF_MARGIN, sigY + 16); }
   } else {
     doc.text('(signature manquante)', PDF_MARGIN, sigY + 16);
   }
 
   if (prestataireSigDataUrl) {
-    doc.addImage(prestataireSigDataUrl, 'PNG', 110, sigY + 4, 60, 24);
+    doc.addImage(prestataireSigDataUrl, pdfImageFormat(prestataireSigDataUrl), 110, sigY + 4, 60, 24);
   } else {
     doc.setTextColor(150);
     doc.text('En attente de signature', 110, sigY + 16);
     doc.setTextColor(0);
   }
 
-  pdfFooter(doc, dateStr);
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    pdfFooter(doc, dateStr);
+  }
 
   return doc.output('blob');
 }
@@ -766,7 +883,7 @@ document.getElementById('sign-submit').addEventListener('click', async () => {
 
     const { data: entreprise } = await supabaseClient.from('entreprise_config').select('*').eq('id', 1).maybeSingle();
 
-    const pdfBlob = await buildContratCadrePdf(currentProfile.nom, entreprise || { nom: 'SBR AUTO' }, sigDataUrl);
+    const pdfBlob = await buildContratCadrePdf(currentProfile, entreprise || { nom: 'SBR CONVOYAGE' }, sigDataUrl);
     const pdfPath = `${currentUser.id}/cadre-signe-${Date.now()}.pdf`;
     const { error: pdfErr } = await supabaseClient.storage.from('contrats').upload(pdfPath, pdfBlob, { contentType: 'application/pdf' });
     if (pdfErr) throw pdfErr;

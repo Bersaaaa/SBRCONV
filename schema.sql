@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Schéma Supabase
+-- SBR CONVOYAGE — Schéma Supabase
 -- À exécuter dans le SQL Editor d'un NOUVEAU projet Supabase
 -- (créer ce projet séparément de SBRAUTO / SBRCOMPTA / SBRCARTEGRISE)
 -- ============================================================
@@ -12,8 +12,20 @@ create table public.profiles (
   telephone text,
   actif boolean not null default true,
   specialites text[] not null default '{}', -- ex: {convoyage,nettoyage}
-  contrat_url text,              -- contrat cadre autorisant le prestataire à travailler avec SBR AUTO
+  contrat_url text,              -- contrat cadre autorisant le prestataire à travailler avec SBR CONVOYAGE
   contrat_ajoute_le timestamptz,
+  contrat_statut text not null default 'non_envoye'
+    check (contrat_statut in ('non_envoye', 'en_attente_signature', 'signe')),
+  contrat_signature_url text,
+  contrat_signe_le timestamptz,
+  email text,
+  en_attente_validation boolean not null default false,
+  missions_acceptees_total integer not null default 0,
+  missions_desistees_total integer not null default 0,
+  missions_annulees_total integer not null default 0,
+  siret text,
+  statut_juridique text,
+  adresse text,
   created_at timestamptz not null default now()
 );
 
@@ -28,6 +40,9 @@ create table public.missions (
   lieu_arrivee text,
   date_prevue timestamptz,
   date_arrivee_prevue timestamptz,  -- convoyage uniquement
+  relance_envoyee_le timestamptz,
+  paye boolean not null default false,
+  paye_le timestamptz,
   prix_ht numeric(10,2) not null check (prix_ht >= 0),
   taux_tva numeric(5,2) not null default 20,
   statut text not null default 'disponible'
@@ -70,6 +85,18 @@ create policy "admin gere les profils"
   on public.profiles for all
   using (public.is_admin())
   with check (public.is_admin());
+
+-- Un utilisateur qui vient de s'inscrire peut créer SA propre ligne de
+-- profil, uniquement en tant que prestataire, désactivé et en attente
+-- de validation — impossible de s'auto-promouvoir admin
+create policy "auto-inscription prestataire"
+  on public.profiles for insert
+  with check (
+    id = auth.uid()
+    and role = 'prestataire'
+    and actif = false
+    and en_attente_validation = true
+  );
 
 -- 6) Policies missions
 -- Lecture : admin voit tout / prestataire voit les missions dispo dans SA
@@ -125,6 +152,13 @@ create policy "prestataire avance ses missions"
   on public.missions for update
   using (prestataire_id = auth.uid())
   with check (prestataire_id = auth.uid());
+
+-- Le prestataire peut se désister d'une mission acceptée avant de la
+-- démarrer : elle redevient disponible pour les autres
+create policy "prestataire se desiste avant demarrage"
+  on public.missions for update
+  using (prestataire_id = auth.uid() and statut = 'acceptee')
+  with check (statut = 'disponible' and prestataire_id is null);
 
 -- 7) États des lieux (avant / après mission), remplis par le prestataire
 create table public.etats_lieux (
@@ -229,6 +263,90 @@ create policy "upload contrats par utilisateurs connectes"
   on storage.objects for insert
   with check (bucket_id = 'contrats' and auth.uid() is not null);
 
+-- 12) Paramètres de l'entreprise (une seule ligne, id = 1)
+create table public.entreprise_config (
+  id integer primary key default 1,
+  nom text,
+  adresse text,
+  forme_juridique text,
+  siret text,
+  signature_url text,
+  updated_at timestamptz default now()
+);
+
+alter table public.entreprise_config enable row level security;
+
+create policy "lecture entreprise_config"
+  on public.entreprise_config for select
+  using (auth.uid() is not null);
+
+create policy "admin gere entreprise_config"
+  on public.entreprise_config for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- 13) Stockage des images de signature (société + prestataires)
+insert into storage.buckets (id, name, public)
+values ('signatures', 'signatures', true)
+on conflict (id) do nothing;
+
+create policy "lecture publique signatures"
+  on storage.objects for select
+  using (bucket_id = 'signatures');
+
+create policy "upload signatures utilisateurs connectes"
+  on storage.objects for insert
+  with check (bucket_id = 'signatures' and auth.uid() is not null);
+
+-- 14) Fonction sécurisée : le prestataire signe SON contrat cadre,
+-- sans pouvoir toucher aux autres champs de son profil (rôle, actif...)
+create or replace function public.signer_contrat_cadre(p_contrat_url text, p_signature_url text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+  set contrat_url = p_contrat_url,
+      contrat_statut = 'signe',
+      contrat_signature_url = p_signature_url,
+      contrat_signe_le = now()
+  where id = auth.uid() and role = 'prestataire';
+end;
+$$;
+
+grant execute on function public.signer_contrat_cadre(text, text) to authenticated;
+
+-- 15) Trigger qui tient à jour les compteurs de fiabilité des prestataires
+-- (acceptées / désistées / annulées) à chaque changement de statut
+create or replace function public.track_mission_stats()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if TG_OP = 'UPDATE' and OLD.statut = 'disponible' and NEW.statut = 'acceptee' and NEW.prestataire_id is not null then
+    update public.profiles set missions_acceptees_total = missions_acceptees_total + 1 where id = NEW.prestataire_id;
+  end if;
+
+  if TG_OP = 'UPDATE' and OLD.statut = 'acceptee' and NEW.statut = 'disponible' and OLD.prestataire_id is not null then
+    update public.profiles set missions_desistees_total = missions_desistees_total + 1 where id = OLD.prestataire_id;
+  end if;
+
+  if TG_OP = 'UPDATE' and NEW.statut = 'annulee' and OLD.statut in ('acceptee', 'en_cours') and OLD.prestataire_id is not null then
+    update public.profiles set missions_annulees_total = missions_annulees_total + 1 where id = OLD.prestataire_id;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+create trigger missions_stats_trigger
+  after update on public.missions
+  for each row execute function public.track_mission_stats();
+
 -- ============================================================
 -- Création des comptes prestataires :
 -- Se fait manuellement depuis le Dashboard Supabase
@@ -239,4 +357,7 @@ create policy "upload contrats par utilisateurs connectes"
 -- spécialités de chaque prestataire (convoyage/nettoyage/inspection/
 -- autre) : un prestataire ne voit que les missions disponibles dans
 -- ses spécialités.
+-- Va aussi dans admin.html > "Paramètres entreprise" pour renseigner
+-- le nom, l'adresse et la signature de ta société (nécessaire pour
+-- générer les contrats).
 -- ============================================================

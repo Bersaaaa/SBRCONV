@@ -1,9 +1,9 @@
 -- ============================================================
--- SBR AUTO — Migration v4
+-- SBR CONVOYAGE — Migration v4
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS schema.sql (ou
 -- migration_v2.sql + migration_v3.sql si déjà passées).
 -- Ajoute : contrat cadre par prestataire (autorisation à travailler
--- avec SBR AUTO), date d'arrivée prévue pour les convoyages.
+-- avec SBR CONVOYAGE), date d'arrivée prévue pour les convoyages.
 -- ============================================================
 
 alter table public.profiles

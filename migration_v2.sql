@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v2
+-- SBR CONVOYAGE — Migration v2
 -- À exécuter UNE FOIS dans le SQL Editor de ton projet Supabase
 -- EXISTANT (celui déjà configuré avec schema.sql).
 -- Ajoute : spécialités prestataires, facture par mission,

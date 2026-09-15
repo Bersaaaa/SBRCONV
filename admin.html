@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SBR AUTO — Admin</title>
+<title>SBR CONVOYAGE — Admin</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#16181D">
@@ -17,9 +17,9 @@
 
 <div class="topbar">
   <div class="brand">
-    <img src="logo-mark.png" class="mark" alt="SBR AUTO">
+    <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
     <div class="names">
-      <h1>SBR AUTO</h1>
+      <h1>SBR CONVOYAGE</h1>
       <span class="sub">Admin</span>
     </div>
   </div>
@@ -80,11 +80,17 @@
       <div class="field-row">
         <div class="field">
           <label id="label-lieu-depart">Lieu de départ</label>
-          <input type="text" id="f-depart">
+          <div class="address-field-wrap">
+            <input type="text" id="f-depart" autocomplete="off">
+            <div class="address-suggestions hidden" id="f-depart-suggestions"></div>
+          </div>
         </div>
         <div class="field" id="field-lieu-arrivee-wrap">
           <label>Lieu d'arrivée</label>
-          <input type="text" id="f-arrivee">
+          <div class="address-field-wrap">
+            <input type="text" id="f-arrivee" autocomplete="off">
+            <div class="address-suggestions hidden" id="f-arrivee-suggestions"></div>
+          </div>
         </div>
       </div>
       <div class="field-row">
@@ -158,11 +164,24 @@
     <form id="entreprise-form">
       <div class="field">
         <label>Nom de la société</label>
-        <input type="text" id="ent-nom" placeholder="SBR AUTO" required>
+        <input type="text" id="ent-nom" placeholder="SBR CONVOYAGE" required>
       </div>
       <div class="field">
         <label>Adresse</label>
-        <input type="text" id="ent-adresse" placeholder="12 rue Example, 69000 Lyon">
+        <div class="address-field-wrap">
+          <input type="text" id="ent-adresse" placeholder="12 rue Example, 69000 Lyon" autocomplete="off">
+          <div class="address-suggestions hidden" id="ent-adresse-suggestions"></div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Forme juridique</label>
+          <input type="text" id="ent-forme" placeholder="SASU, SARL, auto-entrepreneur...">
+        </div>
+        <div class="field">
+          <label>SIRET</label>
+          <input type="text" id="ent-siret" placeholder="123 456 789 00012">
+        </div>
       </div>
       <div class="field">
         <label>Signature de la société (image)</label>
@@ -272,12 +291,12 @@
 <div class="hidden" id="contrat-cadre-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
   <div class="panel" style="max-width:420px;width:100%;">
     <div class="panel-head">
-      <strong>Contrat cadre — autorisation à travailler avec SBR AUTO</strong>
+      <strong>Contrat cadre — autorisation à travailler avec SBR CONVOYAGE</strong>
       <button class="btn btn-ghost" id="contrat-cadre-close" type="button">Fermer</button>
     </div>
     <div id="contrat-cadre-existing"></div>
     <div class="field-hint" style="margin-bottom:14px;">
-      Dépose ici le contrat signé (papier scanné ou signé électroniquement en dehors du site) qui autorise ce prestataire à travailler avec SBR AUTO.
+      Dépose ici le contrat signé (papier scanné ou signé électroniquement en dehors du site) qui autorise ce prestataire à travailler avec SBR CONVOYAGE.
     </div>
     <form id="contrat-cadre-form">
       <div class="field">
@@ -292,6 +311,53 @@
 <script>
 let ttcMode = false;
 let missionsById = {};
+
+/* --- Autocomplétion d'adresse (API Adresse — data.gouv.fr, gratuite) --- */
+function attachAddressAutocomplete(inputId) {
+  const input = document.getElementById(inputId);
+  const box = document.getElementById(inputId + '-suggestions');
+  if (!input || !box) return;
+
+  let debounceTimer = null;
+  let currentSuggestions = [];
+
+  function hide() { box.classList.add('hidden'); box.innerHTML = ''; }
+
+  function render(features) {
+    currentSuggestions = features;
+    if (!features.length) { hide(); return; }
+    box.innerHTML = features.map((f, i) =>
+      `<div class="suggestion" data-idx="${i}">${f.properties.label}</div>`
+    ).join('');
+    box.classList.remove('hidden');
+    box.querySelectorAll('.suggestion').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = currentSuggestions[el.dataset.idx].properties.label;
+        hide();
+      });
+    });
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clearTimeout(debounceTimer);
+    if (q.length < 3) { hide(); return; }
+    debounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`);
+        const json = await res.json();
+        render(json.features || []);
+      } catch (e) { hide(); }
+    }, 300);
+  });
+
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+}
+
+attachAddressAutocomplete('f-depart');
+attachAddressAutocomplete('f-arrivee');
+attachAddressAutocomplete('ent-adresse');
 let currentUser = null;
 let factureMissionId = null;
 
@@ -910,13 +976,15 @@ document.getElementById('close-a-traiter-btn').addEventListener('click', () => {
 });
 
 /* --- Paramètres entreprise --- */
-let entrepriseConfig = { nom: 'SBR AUTO', adresse: '', signature_url: null };
+let entrepriseConfig = { nom: 'SBR CONVOYAGE', adresse: '', signature_url: null };
 
 async function loadEntreprise() {
   const { data } = await supabaseClient.from('entreprise_config').select('*').eq('id', 1).maybeSingle();
   if (data) entrepriseConfig = data;
-  document.getElementById('ent-nom').value = entrepriseConfig.nom || 'SBR AUTO';
+  document.getElementById('ent-nom').value = entrepriseConfig.nom || 'SBR CONVOYAGE';
   document.getElementById('ent-adresse').value = entrepriseConfig.adresse || '';
+  document.getElementById('ent-forme').value = entrepriseConfig.forme_juridique || '';
+  document.getElementById('ent-siret').value = entrepriseConfig.siret || '';
   document.getElementById('ent-sig-preview').innerHTML = entrepriseConfig.signature_url
     ? `<img src="${entrepriseConfig.signature_url}" style="max-height:60px; background:#fff; border-radius:4px; padding:4px;">`
     : `<span class="field-hint">Aucune signature enregistrée pour l'instant.</span>`;
@@ -930,14 +998,42 @@ document.getElementById('close-entreprise-btn').addEventListener('click', () => 
   document.getElementById('entreprise-panel').classList.add('hidden');
 });
 
+async function normalizeImageToPngBlob(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = objectUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Conversion PNG impossible')), 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 document.getElementById('entreprise-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const file = document.getElementById('ent-sig-fichier').files[0];
   let signatureUrl = entrepriseConfig.signature_url || null;
 
   if (file) {
-    const path = `entreprise/signature-${Date.now()}-${file.name}`;
-    const { error: upErr } = await supabaseClient.storage.from('signatures').upload(path, file);
+    let pngBlob;
+    try {
+      pngBlob = await normalizeImageToPngBlob(file);
+    } catch (convErr) {
+      alert("Cette image n'a pas pu être lue. Essaie une autre photo/scan.");
+      return;
+    }
+    const path = `entreprise/signature-${Date.now()}.png`;
+    const { error: upErr } = await supabaseClient.storage.from('signatures').upload(path, pngBlob, { contentType: 'image/png' });
     if (upErr) { alert("Erreur d'envoi de la signature : " + upErr.message); return; }
     const { data } = supabaseClient.storage.from('signatures').getPublicUrl(path);
     signatureUrl = data.publicUrl;
@@ -947,6 +1043,8 @@ document.getElementById('entreprise-form').addEventListener('submit', async (e) 
     id: 1,
     nom: document.getElementById('ent-nom').value,
     adresse: document.getElementById('ent-adresse').value || null,
+    forme_juridique: document.getElementById('ent-forme').value || null,
+    siret: document.getElementById('ent-siret').value || null,
     signature_url: signatureUrl,
     updated_at: new Date().toISOString()
   };
@@ -976,12 +1074,20 @@ async function loadLocalLogoDataUrl() {
   catch (e) { return null; }
 }
 
+function pdfImageFormat(dataUrl) {
+  const match = /^data:image\/(png|jpe?g|webp);/i.exec(dataUrl || '');
+  if (!match) return 'PNG';
+  const type = match[1].toLowerCase();
+  if (type === 'jpg' || type === 'jpeg') return 'JPEG';
+  return type.toUpperCase();
+}
+
 function pdfHeader(doc, logoDataUrl, title, subtitle) {
   doc.setFillColor(22, 24, 29);
   doc.rect(0, 0, PDF_WIDTH, 32, 'F');
   const textX = logoDataUrl ? PDF_MARGIN + 24 : PDF_MARGIN;
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', PDF_MARGIN, 6, 20, 20);
+    doc.addImage(logoDataUrl, pdfImageFormat(logoDataUrl), PDF_MARGIN, 6, 20, 20);
   }
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
@@ -1019,58 +1125,149 @@ function pdfFooter(doc, dateStr) {
   doc.line(PDF_MARGIN, 280, PDF_WIDTH - PDF_MARGIN, 280);
   doc.setFontSize(8.3);
   doc.setTextColor(150);
-  doc.text(`SBR AUTO — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
+  doc.text(`SBR CONVOYAGE — document généré automatiquement le ${dateStr}`, PDF_MARGIN, 286);
   doc.setTextColor(0);
 }
 
-async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDataUrl) {
+function pdfEnsureSpace(doc, y, needed) {
+  if (y + needed > 272) {
+    doc.addPage();
+    return 20;
+  }
+  return y;
+}
+
+async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataUrl) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const dateStr = new Date().toLocaleDateString('fr-FR');
-  const nomSociete = entreprise.nom || 'SBR AUTO';
+  const nomSociete = entreprise.nom || 'SBR CONVOYAGE';
   const logo = await loadLocalLogoDataUrl();
 
-  let y = pdfHeader(doc, logo, 'Contrat de partenariat prestataire', nomSociete + (entreprise.adresse ? ' — ' + entreprise.adresse : ''));
+  const societeDesc = [nomSociete, entreprise.forme_juridique, entreprise.adresse].filter(Boolean).join(' — ');
+  let y = pdfHeader(doc, logo, 'Contrat de prestation de services', societeDesc);
 
-  y = pdfSectionTitle(doc, 'Parties', y);
+  y = pdfSectionTitle(doc, 'Article 1 — Parties', y);
   y = pdfParagraph(doc, [
-    `Entre ${nomSociete}${entreprise.adresse ? ', ' + entreprise.adresse : ''}, ci-après "la Société",`,
-    `et ${prestataireNom}, ci-après "le Prestataire".`,
-  ], y);
-
-  y += 4;
-  y = pdfSectionTitle(doc, 'Objet', y);
-  y = pdfParagraph(doc, [
-    'Le Prestataire est autorisé à réaliser, pour le compte de la Société,',
-    'des missions de convoyage, nettoyage et/ou inspection de véhicules,',
-    'selon les missions qui lui seront proposées via la plateforme SBR AUTO.',
+    `Entre les soussignés :`,
     '',
-    "Chaque mission fait l'objet d'un contrat de mission spécifique (prix,",
-    'dates, conditions particulières), généré automatiquement à son acceptation.',
+    `${nomSociete}${entreprise.forme_juridique ? ', ' + entreprise.forme_juridique : ''}${entreprise.siret ? ', SIRET ' + entreprise.siret : ''}`,
+    entreprise.adresse ? `dont le siège est situé ${entreprise.adresse},` : '',
+    `ci-après désignée "la Société",`,
+    '',
+    `Et`,
+    '',
+    `${prestataire.nom}${prestataire.statut_juridique ? ', ' + prestataire.statut_juridique : ''}${prestataire.siret ? ', SIRET ' + prestataire.siret : ''}`,
+    prestataire.adresse ? `domicilié(e) ${prestataire.adresse},` : '',
+    `ci-après désigné(e) "le Prestataire",`,
+    '',
+    `Il a été convenu ce qui suit :`,
+  ].filter(l => l !== ''), y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 34);
+  y = pdfSectionTitle(doc, 'Article 2 — Objet', y);
+  y = pdfParagraph(doc, [
+    'Le présent contrat a pour objet de définir les conditions générales dans',
+    'lesquelles le Prestataire est autorisé à réaliser, pour le compte de la',
+    'Société, des missions de convoyage, nettoyage et/ou inspection de',
+    "véhicules, proposées via la plateforme SBR CONVOYAGE.",
+    '',
+    "Chaque mission fait l'objet d'un contrat de mission spécifique (nature,",
+    'lieux, dates, prix), généré automatiquement lors de son acceptation par',
+    'le Prestataire, et qui complète le présent contrat sans s\'y substituer.',
   ], y);
 
   y += 4;
-  y = pdfSectionTitle(doc, 'Engagements', y);
+  y = pdfEnsureSpace(doc, y, 40);
+  y = pdfSectionTitle(doc, 'Article 3 — Indépendance du Prestataire', y);
   y = pdfParagraph(doc, [
-    "Le Prestataire s'engage à exécuter les missions acceptées avec soin, à",
-    'renseigner un état des lieux avant et après chaque intervention, et à',
-    'respecter les délais convenus.',
+    'Le Prestataire exerce son activité en toute indépendance, en dehors de',
+    "tout lien de subordination avec la Société. Il organise librement son",
+    "emploi du temps et les modalités d'exécution des missions qu'il choisit",
+    "d'accepter, sans horaire imposé. Il demeure à tout moment libre",
+    "d'accepter ou de refuser toute mission proposée.",
+    '',
+    'Sauf disposition contraire mentionnée dans un contrat de mission, le',
+    'Prestataire utilise son propre véhicule et son propre matériel pour',
+    "l'exécution des missions.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 34);
+  y = pdfSectionTitle(doc, 'Article 4 — Obligations des parties', y);
+  y = pdfParagraph(doc, [
+    "Le Prestataire s'engage à exécuter les missions acceptées avec soin et",
+    "professionnalisme, à renseigner un état des lieux du véhicule avant et",
+    "après chaque intervention, et à respecter les délais convenus.",
     '',
     "La Société s'engage à rémunérer le Prestataire selon les tarifs convenus",
-    'pour chaque mission acceptée.',
+    "pour chaque mission acceptée, dans les conditions de l'article 5.",
   ], y);
 
   y += 4;
-  y = pdfSectionTitle(doc, 'Paiement', y);
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 5 — Rémunération et paiement', y);
   y = pdfParagraph(doc, [
-    'Le règlement des missions réalisées s\'effectue chaque lundi, pour',
+    'Le règlement des missions réalisées intervient chaque lundi, pour',
     "l'ensemble des missions clôturées et facturées au cours de la semaine",
-    'précédente.',
+    "précédente, par virement sur le compte communiqué par le Prestataire.",
   ], y);
 
-  y += 6;
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 6 — Assurance et responsabilité', y);
+  y = pdfParagraph(doc, [
+    'Le Prestataire déclare être couvert par une assurance responsabilité',
+    "civile professionnelle et, le cas échéant, par une assurance adaptée à",
+    "la conduite de véhicules dans le cadre de son activité, et s'engage à",
+    "en justifier à première demande de la Société.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 7 — Confidentialité', y);
+  y = pdfParagraph(doc, [
+    'Le Prestataire s\'engage à conserver strictement confidentielle toute',
+    'information dont il aurait connaissance dans le cadre des missions',
+    '(données clients, tarifs, informations commerciales), pendant la durée',
+    'du contrat et après son terme.',
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 8 — Données personnelles', y);
+  y = pdfParagraph(doc, [
+    "Les données personnelles collectées sont utilisées exclusivement dans",
+    "le cadre de la gestion de la relation contractuelle et des missions. Le",
+    "Prestataire peut exercer ses droits d'accès, de rectification et de",
+    "suppression en contactant la Société.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 9 — Durée et résiliation', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat est conclu pour une durée indéterminée à compter de",
+    "sa signature. Chaque partie peut y mettre fin à tout moment, moyennant",
+    "un préavis de 15 jours notifié par écrit, sans préjudice des missions",
+    "en cours qui devront être menées à leur terme.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 20);
+  y = pdfSectionTitle(doc, 'Article 10 — Droit applicable', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat est soumis au droit français. Tout litige relatif à",
+    "son interprétation ou son exécution relève, à défaut de résolution",
+    "amiable, de la compétence des tribunaux du ressort du siège social de",
+    "la Société.",
+  ], y);
+
+  y += 8;
+  y = pdfEnsureSpace(doc, y, 50);
   doc.setFontSize(10);
-  doc.text(`Fait le ${dateStr}.`, PDF_MARGIN, y);
+  doc.text(`Fait le ${dateStr}, en deux exemplaires.`, PDF_MARGIN, y);
   y += 18;
 
   const sigY = y;
@@ -1083,21 +1280,25 @@ async function buildContratCadrePdf(prestataireNom, entreprise, prestataireSigDa
   if (entreprise.signature_url) {
     try {
       const dataUrl = await loadImageAsDataUrl(entreprise.signature_url);
-      doc.addImage(dataUrl, 'PNG', PDF_MARGIN, sigY + 4, 60, 24);
+      doc.addImage(dataUrl, pdfImageFormat(dataUrl), PDF_MARGIN, sigY + 4, 60, 24);
     } catch (e) { doc.text('(signature)', PDF_MARGIN, sigY + 16); }
   } else {
     doc.text('(signature manquante)', PDF_MARGIN, sigY + 16);
   }
 
   if (prestataireSigDataUrl) {
-    doc.addImage(prestataireSigDataUrl, 'PNG', 110, sigY + 4, 60, 24);
+    doc.addImage(prestataireSigDataUrl, pdfImageFormat(prestataireSigDataUrl), 110, sigY + 4, 60, 24);
   } else {
     doc.setTextColor(150);
     doc.text('En attente de signature', 110, sigY + 16);
     doc.setTextColor(0);
   }
 
-  pdfFooter(doc, dateStr);
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    pdfFooter(doc, dateStr);
+  }
 
   return doc.output('blob');
 }
@@ -1107,7 +1308,11 @@ async function genererEtEnvoyerContrat(prestataireId, prestataireNom) {
     alert('Renseigne d\'abord la signature de ta société dans "Paramètres entreprise".');
     return;
   }
-  const blob = await buildContratCadrePdf(prestataireNom, entrepriseConfig, null);
+  const { data: prestataireData } = await supabaseClient
+    .from('profiles').select('nom, siret, statut_juridique, adresse').eq('id', prestataireId).single();
+  const prestataire = prestataireData || { nom: prestataireNom };
+
+  const blob = await buildContratCadrePdf(prestataire, entrepriseConfig, null);
   const path = `${prestataireId}/cadre-${Date.now()}.pdf`;
   const { error: upErr } = await supabaseClient.storage.from('contrats').upload(path, blob, { contentType: 'application/pdf' });
   if (upErr) { alert("Erreur : " + upErr.message); return; }
@@ -1166,6 +1371,20 @@ function prestataireRow(p) {
     ${noteLine}
     ${fiabiliteLine}
     ${contratLine}
+    <div class="field-row" style="margin-top:10px;">
+      <div class="field" style="margin-bottom:8px;">
+        <label>Statut juridique</label>
+        <input type="text" data-statut-juridique value="${p.statut_juridique || ''}" placeholder="Auto-entrepreneur, EI...">
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>SIRET</label>
+        <input type="text" data-siret value="${p.siret || ''}" placeholder="123 456 789 00012">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:8px;">
+      <label>Adresse</label>
+      <input type="text" data-adresse value="${p.adresse || ''}" placeholder="Adresse du prestataire">
+    </div>
     <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">${checks}</div>
     <div class="actions">
       <button class="btn btn-primary btn-sm" data-save-prestataire="${p.id}">Enregistrer</button>
@@ -1240,9 +1459,12 @@ async function savePrestataire(id) {
   const row = document.querySelector(`[data-prestataire-row="${id}"]`);
   const specialites = SPECIALITES.filter(s => row.querySelector(`[data-spec="${s}"]`).checked);
   const actif = row.querySelector('[data-actif]').checked;
+  const statut_juridique = row.querySelector('[data-statut-juridique]').value || null;
+  const siret = row.querySelector('[data-siret]').value || null;
+  const adresse = row.querySelector('[data-adresse]').value || null;
 
   const { error } = await supabaseClient
-    .from('profiles').update({ specialites, actif }).eq('id', id);
+    .from('profiles').update({ specialites, actif, statut_juridique, siret, adresse }).eq('id', id);
 
   if (error) { alert("Erreur : " + error.message); return; }
   loadPrestataires();

@@ -1,4 +1,4 @@
-# SBR AUTO — Missions & prestataires
+# SBR CONVOYAGE — Missions & prestataires
 
 Site pour publier des missions (convoyage, nettoyage, inspection) que tes
 prestataires acceptent depuis leur compte. Prix saisis en HT ; toi seul (admin)
@@ -13,7 +13,7 @@ Tu peux consulter ces états des lieux depuis ton tableau de bord admin.
 
 ## 1. Créer le projet Supabase
 
-**Nouvelle installation ?** Va sur supabase.com → New project (dédié à SBR AUTO,
+**Nouvelle installation ?** Va sur supabase.com → New project (dédié à SBR CONVOYAGE,
 distinct des 3 autres), ouvre le **SQL Editor**, colle le contenu de
 `schema.sql`, exécute. Il contient déjà tout (spécialités, factures, etc.).
 
@@ -27,7 +27,8 @@ pas encore passées :
 4. `migration_v5.sql` (paramètres entreprise, signature électronique du contrat cadre) — si pas encore fait.
 5. `migration_v6.sql` (désistement d'un prestataire avant démarrage d'une mission) — si pas encore fait.
 6. `migration_v7.sql` (auto-inscription prestataire, suivi des relances automatiques) — si pas encore fait.
-7. `migration_v8.sql` (score de fiabilité, tableau de bord, suivi des paiements).
+7. `migration_v8.sql` (score de fiabilité, tableau de bord, suivi des paiements) — si pas encore fait.
+8. `migration_v9.sql` (informations légales : SIRET, forme juridique, adresse).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -72,7 +73,7 @@ mission disponible.
 
 C'est différent du contrat de mission (généré automatiquement à chaque
 acceptation) : ici c'est le contrat général qui autorise un prestataire à
-travailler avec SBR AUTO, avec ta signature de société d'un côté et celle
+travailler avec SBR CONVOYAGE, avec ta signature de société d'un côté et celle
 du prestataire de l'autre.
 
 1. D'abord, une seule fois : bouton **"Paramètres entreprise"** en haut de
@@ -98,10 +99,37 @@ directement (statut mis à "signé" sans passer par la signature en ligne).
 
 ## 4. Déployer le site
 
-Le site est 100% statique (pas de build). Le plus simple :
+Le site est 100% statique (pas de build), tous les fichiers vivent à la
+racine du dossier (pas de sous-dossier). Le plus simple :
 - Sur vercel.com → New Project → glisse le dossier `sbr-missions`
   (comme tes autres apps sbrauto.vercel.app / sbrcompta.vercel.app).
 - Ou Netlify Drop (netlify.com/drop) pour un déploiement en 10 secondes.
+
+### Nouveau logo et rebranding SBR CONVOYAGE
+
+Le nouveau logo (voiture + route) est utilisé partout : en-tête de chaque
+page, favicon, icône PWA, contrats PDF. Toute la marque a été renommée de
+"SBR AUTO" à "SBR CONVOYAGE" dans l'ensemble du site, des contrats et de
+la documentation.
+
+### Site vitrine
+
+`vitrine.html` est le site public de présentation (accueil, services,
+zone d'intervention, tarifs, professionnels, devenir prestataire, FAQ),
+dans le même style que la maquette que tu as fournie — avec le vrai logo
+et les couleurs de la marque. Deux points de connexion avec le reste de
+l'appli :
+- Le bouton "Créer mon compte prestataire" renvoie vers `inscription.html`
+  (la vraie création de compte, avec validation admin).
+- Un lien "Se connecter" en haut renvoie vers `index.html` (connexion
+  admin/prestataire).
+
+Les deux formulaires (demande de devis, candidature détaillée) sont pour
+l'instant des formulaires de démonstration : ils affichent juste un message
+de confirmation sans rien envoyer nulle part. Pour les rendre fonctionnels,
+il faut soit les connecter à un service d'emails/CRM de ton choix, soit
+demande-moi de les brancher sur une adresse email une fois que tu m'en as
+donné une.
 
 Le site est aussi une **PWA (application installable)** : une fois déployé
 en HTTPS (Vercel/Netlify le sont par défaut), toi et tes prestataires
@@ -129,7 +157,7 @@ peux tout à fait déployer le site sans ça et l'ajouter plus tard.
    récupère une clé API.
 5. Configure les secrets de la fonction :
    `supabase secrets set RESEND_API_KEY=ta_cle_resend`
-   `supabase secrets set RESEND_FROM="SBR AUTO <onboarding@resend.dev>"`
+   `supabase secrets set RESEND_FROM="SBR CONVOYAGE <onboarding@resend.dev>"`
    (remplace par ton propre domaine vérifié sur Resend quand tu en as un —
    `onboarding@resend.dev` fonctionne pour tester).
 6. Dans le Dashboard Supabase → **Database → Webhooks → Create a new hook** :
@@ -174,6 +202,39 @@ toutes les missions concernées, pas un par mission).
    Project Settings → API).
 
 ## Fonctionnement
+
+- **Correctif important** : le bug "Erreur lors de la signature : Incomplete
+  or corrupt PNG file" est corrigé. Il venait du format de la signature de
+  la société : si tu avais déposé une image qui n'était pas un vrai PNG
+  (JPG renommé, etc.), la génération du PDF échouait. Deux corrections :
+  le format réel de chaque image est maintenant détecté automatiquement
+  avant de l'insérer dans le PDF, et toute nouvelle signature déposée dans
+  "Paramètres entreprise" est systématiquement reconvertie en PNG propre
+  avant l'envoi. Si le problème te bloquait avant cette mise à jour,
+  redépose simplement ta signature depuis "Paramètres entreprise" — c'est
+  suffisant, pas besoin de renvoyer les contrats déjà générés.
+- **Contrat cadre = vrai contrat de prestation de services** : il comporte
+  désormais l'identification complète des parties (forme juridique, SIRET,
+  adresse — à renseigner dans "Paramètres entreprise" pour la société, et
+  dans la fiche de chaque prestataire pour lui), et des articles standards :
+  indépendance du prestataire (pas de lien de subordination — important
+  pour éviter toute requalification en salariat), obligations réciproques,
+  rémunération, assurance/responsabilité, confidentialité, données
+  personnelles, durée et résiliation (préavis de 15 jours), droit
+  applicable. Le PDF s'étale sur plusieurs pages si besoin, avec pied de
+  page sur chacune.
+  ⚠️ Ce contrat est un modèle généraliste, pas un avis juridique — fais-le
+  relire par un professionnel (avocat, expert-comptable) avant de le
+  diffuser à grande échelle, notamment sur le statut du prestataire.
+- **Contrat de mission enrichi** : rappelle désormais le cadre du contrat
+  de prestation de services et l'indépendance du prestataire, affiche la
+  date d'arrivée prévue pour les convoyages, et gère lui aussi plusieurs
+  pages si besoin.
+- **Autocomplétion d'adresse** : en tapant dans "Lieu de départ", "Lieu
+  d'arrivée" (création de mission), "Adresse" (Paramètres entreprise et
+  inscription prestataire), des suggestions d'adresses réelles apparaissent
+  au bout de 3 caractères, via l'API Adresse du gouvernement français
+  (gratuite, sans inscription, aucune clé à configurer).
 
 - **Score de fiabilité** : dans le panneau Prestataires, chaque prestataire
   affiche désormais, en plus de sa note moyenne, un score de fiabilité sur
@@ -256,7 +317,7 @@ toutes les missions concernées, pas un par mission).
 - Les photos d'état des lieux sont stockées dans le bucket Supabase Storage
   `etats-lieux`, les factures PDF dans `factures`, et les contrats générés
   automatiquement dans `contrats`.
-- Le logo SBR AUTO est utilisé partout : en-tête de chaque page, favicon,
+- Le logo SBR CONVOYAGE est utilisé partout : en-tête de chaque page, favicon,
   et icône de l'app une fois installée en PWA.
 
 ## Idées pour la suite

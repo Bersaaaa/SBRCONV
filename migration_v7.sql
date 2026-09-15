@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v7
+-- SBR CONVOYAGE — Migration v7
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS les migrations
 -- précédentes (v2 à v6).
 -- Ajoute : auto-inscription des prestataires (avec validation admin),

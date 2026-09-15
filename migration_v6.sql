@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v6
+-- SBR CONVOYAGE — Migration v6
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS les migrations
 -- précédentes.
 -- Ajoute : possibilité pour un prestataire de se désister d'une

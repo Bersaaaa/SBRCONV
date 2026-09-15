@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v3
+-- SBR CONVOYAGE — Migration v3
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS avoir déjà exécuté
 -- schema.sql et migration_v2.sql sur ce projet.
 -- Ajoute : notation des prestataires, génération de contrat PDF.

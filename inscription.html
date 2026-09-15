@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SBR AUTO — Inscription prestataire</title>
+<title>SBR CONVOYAGE — Inscription prestataire</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#16181D">
@@ -17,9 +17,9 @@
 <div class="login-screen">
   <div class="login-box" style="max-width:420px;">
     <div class="brand">
-      <img src="logo-mark.png" class="mark" alt="SBR AUTO">
+      <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
       <div class="names">
-        <h1>SBR AUTO</h1>
+        <h1>SBR CONVOYAGE</h1>
         <span class="sub">Inscription prestataire</span>
       </div>
     </div>
@@ -40,6 +40,13 @@
         <div class="field">
           <label for="telephone">Téléphone</label>
           <input type="tel" id="telephone" required>
+        </div>
+        <div class="field">
+          <label for="adresse">Adresse</label>
+          <div class="address-field-wrap">
+            <input type="text" id="adresse" autocomplete="off">
+            <div class="address-suggestions hidden" id="adresse-suggestions"></div>
+          </div>
         </div>
         <div class="field">
           <label for="email">Email</label>
@@ -71,12 +78,58 @@
     <div style="text-align:center; margin-top:16px;">
       <a href="index.html" style="color:var(--text-muted); font-size:13px;">Déjà inscrit ? Se connecter</a>
     </div>
+    <div style="text-align:center; margin-top:10px;">
+      <a href="vitrine.html" style="color:var(--text-faint); font-size:12.5px;">← Retour au site</a>
+    </div>
   </div>
 </div>
 
 <script>
 const form = document.getElementById('inscription-form');
 const msgEl = document.getElementById('msg');
+
+function attachAddressAutocomplete(inputId) {
+  const input = document.getElementById(inputId);
+  const box = document.getElementById(inputId + '-suggestions');
+  if (!input || !box) return;
+
+  let debounceTimer = null;
+  let currentSuggestions = [];
+
+  function hide() { box.classList.add('hidden'); box.innerHTML = ''; }
+
+  function render(features) {
+    currentSuggestions = features;
+    if (!features.length) { hide(); return; }
+    box.innerHTML = features.map((f, i) =>
+      `<div class="suggestion" data-idx="${i}">${f.properties.label}</div>`
+    ).join('');
+    box.classList.remove('hidden');
+    box.querySelectorAll('.suggestion').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = currentSuggestions[el.dataset.idx].properties.label;
+        hide();
+      });
+    });
+  }
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clearTimeout(debounceTimer);
+    if (q.length < 3) { hide(); return; }
+    debounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=5`);
+        const json = await res.json();
+        render(json.features || []);
+      } catch (e) { hide(); }
+    }, 300);
+  });
+
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+}
+attachAddressAutocomplete('adresse');
 
 function showMsg(text, type) {
   msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
@@ -90,6 +143,7 @@ form.addEventListener('submit', async (e) => {
 
   const nom = document.getElementById('nom').value.trim();
   const telephone = document.getElementById('telephone').value.trim();
+  const adresse = document.getElementById('adresse').value.trim();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const specialites = ['convoyage', 'nettoyage', 'inspection']
@@ -105,6 +159,7 @@ form.addEventListener('submit', async (e) => {
       role: 'prestataire',
       nom,
       telephone,
+      adresse: adresse || null,
       email,
       specialites,
       actif: false,

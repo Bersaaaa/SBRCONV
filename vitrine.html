@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR Convoyage — Convoyage automobile à Marseille</title>
+<meta name="description" content="SBR Convoyage : convoyage automobile, récupération sur parc et livraison de véhicules au départ de Marseille et partout en France.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0d10">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{--dark:#0b0d10;--dark2:#15191f;--text:#15171b;--muted:#69707a;--line:#e7e9ed;--accent:#C8901F;--bg:#f7f8fa;--white:#fff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--text);background:var(--white);line-height:1.55}
+a{text-decoration:none;color:inherit}.container{width:min(1160px,92%);margin:auto}
+header{position:sticky;top:0;z-index:50;background:rgba(11,13,16,.96);color:white;border-bottom:1px solid #252930}
+.nav{height:74px;display:flex;align-items:center;justify-content:space-between;gap:20px}.logo{font-size:23px;font-weight:900;letter-spacing:-.8px;display:inline-flex;align-items:center;gap:10px}.logo img{height:36px;width:36px;border-radius:50%;display:block}.logo span{color:var(--accent)}
+nav{display:flex;gap:25px;align-items:center;font-size:14px}nav a{opacity:.86}nav a:hover{opacity:1;color:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;font-weight:800;border:1px solid transparent;cursor:pointer}.btn-primary{background:var(--accent);color:#fff}.btn-light{background:#fff;color:var(--dark)}.btn-outline{border-color:#40454d;color:#fff}
+.menu{display:none;background:none;border:0;color:#fff;font-size:25px}
+.hero{background:linear-gradient(105deg,rgba(8,10,13,.96),rgba(8,10,13,.72)),url("https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1800&q=85") center/cover;min-height:650px;display:flex;align-items:center;color:white}
+.hero-content{max-width:760px;padding:80px 0}.eyebrow{display:inline-block;color:#E0AE4D;background:rgba(200,144,31,.14);border:1px solid rgba(200,144,31,.4);padding:7px 11px;border-radius:99px;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.8px}
+h1{font-size:clamp(43px,7vw,78px);line-height:.98;letter-spacing:-3px;margin:22px 0}.hero p{font-size:19px;color:#d8dbe0;max-width:650px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+.trust{background:var(--dark2);color:white}.trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#30343b}.trust-item{padding:24px;background:var(--dark2)}.trust-item strong{display:block}.trust-item span{font-size:13px;color:#aeb4bc}
+section{padding:85px 0}.section-head{max-width:720px;margin-bottom:42px}.section-head h2{font-size:42px;line-height:1.05;letter-spacing:-1.5px;margin:10px 0}.section-head p{color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.card{border:1px solid var(--line);border-radius:18px;padding:30px;background:white;transition:.2s}.card:hover{transform:translateY(-3px);box-shadow:0 12px 35px #1111}.icon{font-size:30px}.card h3{font-size:21px}.card p{color:var(--muted)}.link{font-weight:800;color:var(--accent)}
+.dark-section{background:var(--dark);color:white}.dark-section .section-head p{color:#aeb4bc}
+.mapbox{background:linear-gradient(135deg,#1a1e24,#0b0d10);border-radius:24px;min-height:330px;position:relative;overflow:hidden;padding:35px}.route{height:2px;background:var(--accent);position:absolute;left:15%;right:15%;top:52%;transform:rotate(-8deg)}.city{position:absolute;background:#fff;color:#111;padding:8px 12px;border-radius:99px;font-size:12px;font-weight:800}.marseille{left:43%;top:48%;background:var(--accent);color:#fff}.aubagne{left:31%;top:66%}.aix{left:58%;top:28%}.toulon{left:73%;top:72%}.nice{right:5%;top:38%}.lyon{left:18%;top:18%}.paris{left:4%;top:4%}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}.step{padding:24px;border-top:3px solid var(--accent)}.num{font-size:13px;font-weight:900;color:var(--accent)}.step p{color:var(--muted);font-size:14px}
+.price-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.price{border:1px solid var(--line);border-radius:14px;padding:20px}.price strong{display:block;margin-bottom:7px}.price span{font-size:13px;color:var(--muted)}
+.cta{background:var(--accent);color:#fff;border-radius:24px;padding:48px;display:flex;align-items:center;justify-content:space-between;gap:30px}.cta h2{font-size:38px;line-height:1.05;margin:0}.cta p{margin-bottom:0;opacity:.9}
+.pro{display:grid;grid-template-columns:1fr 1fr;gap:45px;align-items:center}.check{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:25px 0}.check div{padding:15px;border:1px solid var(--line);border-radius:10px;font-weight:700}
+.form-wrap{background:var(--bg)}form{background:white;border:1px solid var(--line);border-radius:20px;padding:30px;box-shadow:0 12px 40px #1111110a}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}label{font-weight:800;font-size:13px;display:block;margin-bottom:7px}input,select,textarea{width:100%;padding:13px 14px;border:1px solid #dfe2e7;border-radius:9px;font:inherit;background:#fff}textarea{min-height:120px;resize:vertical}.full{grid-column:1/-1}.checks{display:flex;gap:18px;flex-wrap:wrap}.checks label{font-weight:600}.checks input{width:auto}
+.faq{max-width:850px}.faq details{border-bottom:1px solid var(--line);padding:20px 0}.faq summary{font-weight:800;cursor:pointer}
+footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:30px}.footer-grid p,.footer-grid a{color:#9ea5ae;font-size:14px;display:block;margin:8px 0}.footer-title{font-weight:800;margin-bottom:14px}.copyright{border-top:1px solid #24282e;margin-top:35px;padding-top:20px;color:#7e858e;font-size:12px;display:flex;justify-content:space-between}
+@media(max-width:850px){nav{display:none}.menu{display:block}.nav>.btn{display:none}.trust-grid{grid-template-columns:1fr 1fr}.cards,.pro{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.price-grid{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.cta{display:block}.cta .btn{margin-top:22px}.hero{min-height:590px}}
+@media(max-width:560px){section{padding:62px 0}.hero-content{padding:60px 0}h1{letter-spacing:-2px}.hero p{font-size:16px}.trust-grid,.steps,.price-grid,.form-grid,.footer-grid{grid-template-columns:1fr}.full{grid-column:auto}.cta{padding:30px}.cta h2,.section-head h2{font-size:32px}.check{grid-template-columns:1fr}.copyright{display:block}.copyright span{display:block;margin-top:8px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a class="logo" href="#accueil"><img src="icons/logo-mark.png" alt="SBR CONVOYAGE">SBR<span>CONVOYAGE</span></a>
+    <nav>
+      <a href="#services">Services</a><a href="#zone">Zone</a><a href="#tarifs">Tarifs</a>
+      <a href="#pro">Professionnels</a><a href="#prestataire">Devenir prestataire</a>
+      <a href="index.html">Se connecter</a>
+    </nav>
+    <a class="btn btn-primary" href="#devis">Demander un devis</a>
+    <button class="menu" aria-label="Menu">☰</button>
+  </div>
+</header>
+
+<main>
+<section class="hero" id="accueil">
+  <div class="container hero-content">
+    <span class="eyebrow">Marseille • PACA • France</span>
+    <h1>VOTRE VÉHICULE.<br>NOTRE TRAJET.</h1>
+    <p>Convoyage automobile professionnel, récupération sur parc et livraison de véhicules au départ de Marseille et partout en France.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#devis">Demander un devis →</a>
+      <a class="btn btn-outline" href="#services">Découvrir nos services</a>
+    </div>
+  </div>
+</section>
+
+<section class="trust">
+<div class="container trust-grid">
+  <div class="trust-item"><strong>🚗 Convoyage</strong><span>Déplacement de véhicules</span></div>
+  <div class="trust-item"><strong>📍 Marseille & PACA</strong><span>Une présence locale</span></div>
+  <div class="trust-item"><strong>🏢 Récupération sur parc</strong><span>Parcs & plateformes automobiles</span></div>
+  <div class="trust-item"><strong>📸 Inspection</strong><span>Photos & état du véhicule</span></div>
+</div>
+</section>
+
+<section id="services">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Nos services</span><h2>Une solution pour chaque déplacement.</h2><p>Du trajet local à la récupération d'un véhicule acheté à distance, SBR CONVOYAGE organise le déplacement de votre véhicule.</p></div>
+  <div class="cards">
+    <article class="card"><div class="icon">🚗</div><h3>Convoyage automobile</h3><p>Déplacement d'un véhicule entre deux adresses, à Marseille, en PACA ou sur longue distance.</p><a class="link" href="#devis">Demander un devis →</a></article>
+    <article class="card"><div class="icon">🏢</div><h3>Récupération sur parc</h3><p>Récupération de véhicules achetés auprès de parcs automobiles, plateformes et professionnels.</p><a class="link" href="#devis">Organiser une récupération →</a></article>
+    <article class="card"><div class="icon">📦</div><h3>Livraison de véhicules</h3><p>Livraison vers un garage, un domicile, un client ou toute autre destination convenue.</p><a class="link" href="#devis">Planifier une livraison →</a></article>
+    <article class="card"><div class="icon">🧽</div><h3>Nettoyage automobile</h3><p>Nettoyage intérieur et extérieur avant restitution, livraison ou mise en location.</p><a class="link" href="#devis">Demander une prestation →</a></article>
+    <article class="card"><div class="icon">🔎</div><h3>Inspection véhicule</h3><p>Inspection visuelle, photos et relevé de l'état apparent avant récupération ou livraison.</p><a class="link" href="#devis">Demander une inspection →</a></article>
+  </div>
+</div>
+</section>
+
+<section class="dark-section" id="zone">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Zone d'intervention</span><h2>Basés à Marseille. Mobiles partout en France.</h2><p>Notre activité est principalement concentrée autour de Marseille et des Bouches-du-Rhône, avec des convoyages possibles selon votre demande.</p></div>
+  <div class="mapbox">
+    <div class="route"></div>
+    <span class="city paris">Paris</span><span class="city lyon">Lyon</span><span class="city aix">Aix-en-Provence</span>
+    <span class="city marseille">Marseille</span><span class="city aubagne">Aubagne</span><span class="city toulon">Toulon</span><span class="city nice">Nice</span>
+  </div>
+</div>
+</section>
+
+<section>
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Simple & efficace</span><h2>Comment ça marche ?</h2></div>
+  <div class="steps">
+    <div class="step"><div class="num">01</div><h3>Votre demande</h3><p>Départ, destination, véhicule et date souhaitée.</p></div>
+    <div class="step"><div class="num">02</div><h3>Votre devis</h3><p>Nous étudions le trajet et ses conditions.</p></div>
+    <div class="step"><div class="num">03</div><h3>Prise en charge</h3><p>Contrôle visuel et photos au départ selon la prestation.</p></div>
+    <div class="step"><div class="num">04</div><h3>Convoyage</h3><p>Le véhicule est conduit jusqu'à sa destination.</p></div>
+    <div class="step"><div class="num">05</div><h3>Livraison</h3><p>Remise du véhicule et confirmation d'arrivée.</p></div>
+  </div>
+</div>
+</section>
+
+<section id="tarifs" class="form-wrap">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Tarifs</span><h2>Un tarif adapté à chaque trajet.</h2><p>Chaque mission est différente. Le prix est établi selon la distance, le véhicule, le lieu de prise en charge et les conditions du trajet.</p></div>
+  <div class="price-grid">
+    <div class="price"><strong>Convoyage local</strong><span>Marseille & alentours<br>Sur devis</span></div>
+    <div class="price"><strong>PACA</strong><span>Marseille, Toulon, Nice…<br>Sur devis</span></div>
+    <div class="price"><strong>Récupération sur parc</strong><span>Parc / plateforme<br>Sur devis</span></div>
+    <div class="price"><strong>Longue distance</strong><span>Trajets nationaux<br>Sur devis</span></div>
+    <div class="price"><strong>Professionnels</strong><span>Missions régulières<br>Tarif personnalisé</span></div>
+  </div>
+</div>
+</section>
+
+<section id="pro">
+<div class="container pro">
+  <div>
+    <span class="eyebrow">Professionnels</span><h2>Vous avez plusieurs véhicules à déplacer ?</h2>
+    <p>Garages, marchands, loueurs et professionnels de l'automobile : confiez-nous vos besoins ponctuels ou réguliers.</p>
+    <div class="check"><div>✓ Garages</div><div>✓ Marchands</div><div>✓ Loueurs</div><div>✓ Flottes automobiles</div></div>
+    <a class="btn btn-primary" href="#devis">Parler de votre besoin</a>
+  </div>
+  <div class="card"><h3>Une organisation adaptée à votre activité</h3><p>Transmettez-nous vos trajets, votre fréquence et vos contraintes. Nous étudions une solution adaptée à vos besoins.</p><strong>Mission ponctuelle ou régulière.</strong></div>
+</div>
+</section>
+
+<section class="dark-section" id="prestataire">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Réseau SBR Convoyage</span><h2>Devenez prestataire.</h2><p>Vous êtes convoyeur indépendant ou professionnel de l'automobile ? Rejoignez notre réseau et présentez votre profil pour recevoir des opportunités de missions.</p></div>
+  <div class="cards">
+    <article class="card"><div class="icon">📋</div><h3>Des missions</h3><p>Des opportunités de convoyage local ou longue distance selon les besoins et disponibilités.</p></article>
+    <article class="card"><div class="icon">📍</div><h3>Votre zone</h3><p>Indiquez vos villes et zones d'intervention pour faciliter l'attribution des missions.</p></article>
+    <article class="card"><div class="icon">🤝</div><h3>Un réseau</h3><p>Une relation professionnelle claire, avec des missions proposées selon les besoins.</p></article>
+  </div>
+  <div style="margin-top:30px; display:flex; gap:12px; flex-wrap:wrap;">
+    <a class="btn btn-primary" href="inscription.html">Créer mon compte prestataire →</a>
+    <a class="btn btn-outline" href="#candidature">En savoir plus avant de m'inscrire</a>
+  </div>
+</div>
+</section>
+
+<section id="devis" class="form-wrap">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Demande de devis</span><h2>Votre trajet commence ici.</h2><p>Remplissez les informations ci-dessous. Nous vous recontacterons pour étudier votre demande.</p></div>
+  <form onsubmit="event.preventDefault(); alert('Merci ! Votre demande a bien été préparée. Connectez ce formulaire à votre service email ou CRM pour recevoir les demandes.');">
+    <div class="form-grid">
+      <div><label>Nom / Prénom *</label><input required placeholder="Votre nom"></div>
+      <div><label>Entreprise</label><input placeholder="Nom de votre société"></div>
+      <div><label>Téléphone *</label><input required type="tel" placeholder="06 XX XX XX XX"></div>
+      <div><label>Email *</label><input required type="email" placeholder="vous@email.fr"></div>
+      <div><label>Lieu de départ *</label><input required placeholder="Adresse / parc automobile"></div>
+      <div><label>Destination *</label><input required placeholder="Ville / adresse"></div>
+      <div><label>Date souhaitée *</label><input required type="date"></div>
+      <div><label>Horaire souhaité</label><input type="time"></div>
+      <div><label>Marque *</label><input required placeholder="Ex. Peugeot"></div>
+      <div><label>Modèle *</label><input required placeholder="Ex. 208"></div>
+      <div><label>Immatriculation</label><input placeholder="AA-123-AA"></div>
+      <div><label>Année</label><input type="number" min="1900" max="2100" placeholder="2020"></div>
+      <div class="full"><label>Type de demande</label><div class="checks">
+        <label><input type="checkbox"> Convoyage</label><label><input type="checkbox"> Récupération sur parc</label><label><input type="checkbox"> Livraison</label><label><input type="checkbox"> Nettoyage</label><label><input type="checkbox"> Inspection</label><label><input type="checkbox"> Demande professionnelle</label>
+      </div></div>
+      <div class="full"><label>Le véhicule est-il roulant ?</label><select><option>Oui</option><option>Non</option><option>À préciser</option></select></div>
+      <div class="full"><label>Informations complémentaires</label><textarea placeholder="Décrivez votre besoin, contraintes d'accès, état du véhicule..."></textarea></div>
+      <div class="full"><label><input type="checkbox" required> J'accepte que mes informations soient utilisées pour traiter ma demande.</label></div>
+      <div class="full"><button class="btn btn-primary" type="submit">Demander mon devis →</button></div>
+    </div>
+  </form>
+</div>
+</section>
+
+<section id="candidature">
+<div class="container">
+  <div class="section-head"><span class="eyebrow">Devenir prestataire</span><h2>Rejoignez SBR CONVOYAGE.</h2><p>Envie d'en dire un peu plus avant de créer ton compte ? Laisse-nous tes coordonnées ci-dessous. Sinon, <a class="link" href="inscription.html">crée directement ton compte prestataire →</a></p></div>
+  <form onsubmit="event.preventDefault(); alert('Merci ! Votre candidature a été préparée. Connectez ce formulaire à votre service email ou CRM.');">
+    <div class="form-grid">
+      <div><label>Nom / Prénom *</label><input required></div><div><label>Téléphone *</label><input required type="tel"></div>
+      <div><label>Email *</label><input required type="email"></div><div><label>Ville de résidence *</label><input required></div>
+      <div><label>Statut professionnel</label><select><option>Indépendant</option><option>Entreprise</option><option>Autre</option></select></div>
+      <div><label>Expérience</label><select><option>Débutant</option><option>Moins de 2 ans</option><option>2 à 5 ans</option><option>Plus de 5 ans</option></select></div>
+      <div class="full"><label>Zone d'intervention</label><input placeholder="Ex. Marseille, PACA, France entière"></div>
+      <div class="full"><label>Disponibilités</label><input placeholder="Ex. Semaine, week-end, ponctuellement..."></div>
+      <div class="full"><label>Message</label><textarea placeholder="Présentez votre expérience et votre profil..."></textarea></div>
+      <div class="full"><button class="btn btn-primary" type="submit">Envoyer ma candidature →</button></div>
+    </div>
+  </form>
+</div>
+</section>
+
+<section>
+<div class="container faq">
+  <div class="section-head"><span class="eyebrow">FAQ</span><h2>Questions fréquentes</h2></div>
+  <details><summary>Où intervenez-vous ?</summary><p>Principalement à Marseille et dans les Bouches-du-Rhône, avec des convoyages possibles en PACA et partout en France selon la demande.</p></details>
+  <details><summary>Pouvez-vous récupérer un véhicule sur un parc automobile ?</summary><p>Oui, sous réserve des conditions d'accès et de prise en charge du parc.</p></details>
+  <details><summary>Travaillez-vous avec les professionnels ?</summary><p>Oui, notamment avec les garages, marchands, loueurs et professionnels de l'automobile.</p></details>
+  <details><summary>Le véhicule doit-il être roulant ?</summary><p>Un véhicule non roulant nécessite une solution de transport adaptée. La demande doit être précisée lors du devis.</p></details>
+  <details><summary>Comment obtenir un tarif ?</summary><p>Remplissez le formulaire de devis avec le départ, la destination et les informations du véhicule.</p></details>
+</div>
+</section>
+
+<section>
+<div class="container"><div class="cta"><div><h2>Un véhicule à déplacer ?</h2><p>Donnez-nous les informations du trajet. Nous étudions votre demande.</p></div><a class="btn btn-light" href="#devis">Demander un devis →</a></div></div>
+</section>
+</main>
+
+<footer>
+<div class="container">
+  <div class="footer-grid">
+    <div><div class="logo"><img src="icons/logo-mark.png" alt="SBR CONVOYAGE">SBR<span>CONVOYAGE</span></div><p>Le convoyage automobile, simplement.</p><p>Marseille • PACA • France</p></div>
+    <div><div class="footer-title">Navigation</div><a href="#accueil">Accueil</a><a href="#services">Services</a><a href="#tarifs">Tarifs</a><a href="#devis">Demander un devis</a></div>
+    <div><div class="footer-title">Professionnels</div><a href="#pro">Solutions pro</a><a href="#prestataire">Devenir prestataire</a><a href="#candidature">Candidature</a></div>
+    <div><div class="footer-title">Informations</div><a href="#">Mentions légales</a><a href="#">Politique de confidentialité</a><a href="#">CGV</a><a href="#">Cookies</a></div>
+  </div>
+  <div class="copyright"><span>© 2026 SBR CONVOYAGE — Tous droits réservés.</span><span>Site vitrine — demande de devis en ligne</span></div>
+</div>
+</footer>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

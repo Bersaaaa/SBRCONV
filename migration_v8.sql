@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v8
+-- SBR CONVOYAGE — Migration v8
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS les migrations
 -- précédentes (v2 à v7).
 -- Ajoute : compteurs pour le score de fiabilité (acceptées /

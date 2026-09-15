@@ -1,5 +1,5 @@
 -- ============================================================
--- SBR AUTO — Migration v5
+-- SBR CONVOYAGE — Migration v5
 -- À exécuter UNE FOIS dans le SQL Editor, APRÈS les migrations
 -- précédentes (v2, v3, v4).
 -- Ajoute : paramètres entreprise (nom, adresse, signature),
