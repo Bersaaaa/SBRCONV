@@ -19,24 +19,56 @@
 a{text-decoration:none;color:inherit}.container{width:min(1160px,92%);margin:auto}
 header{position:sticky;top:0;z-index:50;background:rgba(11,13,16,.96);color:white;border-bottom:1px solid #252930}
 .nav{height:74px;display:flex;align-items:center;justify-content:space-between;gap:20px}.logo{font-size:23px;font-weight:900;letter-spacing:-.8px;display:inline-flex;align-items:center;gap:10px}.logo img{height:36px;width:36px;border-radius:50%;display:block}.logo span{color:var(--accent)}
-nav{display:flex;gap:25px;align-items:center;font-size:14px}nav a{opacity:.86}nav a:hover{opacity:1;color:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;font-weight:800;border:1px solid transparent;cursor:pointer}.btn-primary{background:var(--accent);color:#fff}.btn-light{background:#fff;color:var(--dark)}.btn-outline{border-color:#40454d;color:#fff}
-.menu{display:none;background:none;border:0;color:#fff;font-size:25px}
-.hero{background:linear-gradient(105deg,rgba(8,10,13,.96),rgba(8,10,13,.72)),url("https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1800&q=85") center/cover;min-height:650px;display:flex;align-items:center;color:white}
+nav{display:flex;gap:25px;align-items:center;font-size:14px}nav a{opacity:.86}nav a:hover{opacity:1;color:#fff}.btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:10px;font-weight:800;border:1px solid transparent;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,opacity .12s ease}.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(200,144,31,.35)}.btn-light{background:#fff;color:var(--dark)}.btn-light:hover{transform:translateY(-1px)}.btn-outline{border-color:#40454d;color:#fff}.btn-outline:hover{border-color:#6a7078}.btn:active{transform:translateY(0)}
+.menu{display:none;background:none;border:0;color:#fff;font-size:25px;cursor:pointer}
+.mobile-nav{position:fixed;inset:0;z-index:100;background:rgba(8,10,13,.7);display:none}
+.mobile-nav.open{display:block}
+.mobile-nav .panel{position:absolute;top:0;right:0;bottom:0;width:min(300px,84%);background:var(--dark2);padding:20px;box-shadow:-10px 0 40px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:4px;animation:slideIn .22s ease;}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.mobile-nav .close{align-self:flex-end;background:none;border:0;color:#fff;font-size:22px;padding:8px;cursor:pointer}
+.mobile-nav a{color:#fff;padding:14px 6px;border-bottom:1px solid #262a31;font-weight:700;font-size:15px}
+.mobile-nav .btn{margin-top:16px}
+.hero{
+  background:
+    radial-gradient(1100px 550px at 82% -8%, rgba(224,174,77,.22), transparent 62%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.035) 0 2px, transparent 2px 92px),
+    linear-gradient(160deg, #0b0d10 0%, #14181e 60%, #0b0d10 100%);
+  min-height:650px;display:flex;align-items:center;color:white;position:relative;overflow:hidden;
+}
+.hero::after{content:"";position:absolute;right:-120px;bottom:-160px;width:520px;height:520px;border-radius:50%;border:1px solid rgba(224,174,77,.28);pointer-events:none}
+.hero::before{content:"";position:absolute;right:-40px;bottom:-260px;width:520px;height:520px;border-radius:50%;border:1px solid rgba(224,174,77,.16);pointer-events:none}
 .hero-content{max-width:760px;padding:80px 0}.eyebrow{display:inline-block;color:#E0AE4D;background:rgba(200,144,31,.14);border:1px solid rgba(200,144,31,.4);padding:7px 11px;border-radius:99px;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.8px}
 h1{font-size:clamp(43px,7vw,78px);line-height:.98;letter-spacing:-3px;margin:22px 0}.hero p{font-size:19px;color:#d8dbe0;max-width:650px}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
 .trust{background:var(--dark2);color:white}.trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#30343b}.trust-item{padding:24px;background:var(--dark2)}.trust-item strong{display:block}.trust-item span{font-size:13px;color:#aeb4bc}
+
+.clients-marquee{background:var(--bg);padding:38px 0 46px;overflow:hidden;border-bottom:1px solid var(--line)}
+.marquee-label{text-align:center;color:var(--muted);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1.4px;margin-bottom:22px}
+.marquee-track{width:100%;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+.marquee-content{display:flex;align-items:center;gap:64px;width:max-content;animation:scrollMarquee 24s linear infinite}
+.marquee-content span{font-size:21px;font-weight:900;color:#9aa0a8;white-space:nowrap;letter-spacing:-.4px}
+.marquee-track:hover .marquee-content{animation-play-state:paused}
+@keyframes scrollMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 section{padding:85px 0}.section-head{max-width:720px;margin-bottom:42px}.section-head h2{font-size:42px;line-height:1.05;letter-spacing:-1.5px;margin:10px 0}.section-head p{color:var(--muted)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}.card{border:1px solid var(--line);border-radius:18px;padding:30px;background:white;transition:.2s}.card:hover{transform:translateY(-3px);box-shadow:0 12px 35px #1111}.icon{font-size:30px}.card h3{font-size:21px}.card p{color:var(--muted)}.link{font-weight:800;color:var(--accent)}
 .dark-section{background:var(--dark);color:white}.dark-section .section-head p{color:#aeb4bc}
-.mapbox{background:linear-gradient(135deg,#1a1e24,#0b0d10);border-radius:24px;min-height:330px;position:relative;overflow:hidden;padding:35px}.route{height:2px;background:var(--accent);position:absolute;left:15%;right:15%;top:52%;transform:rotate(-8deg)}.city{position:absolute;background:#fff;color:#111;padding:8px 12px;border-radius:99px;font-size:12px;font-weight:800}.marseille{left:43%;top:48%;background:var(--accent);color:#fff}.aubagne{left:31%;top:66%}.aix{left:58%;top:28%}.toulon{left:73%;top:72%}.nice{right:5%;top:38%}.lyon{left:18%;top:18%}.paris{left:4%;top:4%}
+.map-embed{border-radius:24px;overflow:hidden;border:1px solid #262a31;height:380px}.map-embed iframe{width:100%;height:100%;border:0;filter:grayscale(.15) contrast(1.05)}.city-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.city-chips span{background:#1a1e24;border:1px solid #2a2f37;color:#dfe2e6;padding:8px 14px;border-radius:99px;font-size:12.5px;font-weight:700}
 .steps{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}.step{padding:24px;border-top:3px solid var(--accent)}.num{font-size:13px;font-weight:900;color:var(--accent)}.step p{color:var(--muted);font-size:14px}
 .price-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.price{border:1px solid var(--line);border-radius:14px;padding:20px}.price strong{display:block;margin-bottom:7px}.price span{font-size:13px;color:var(--muted)}
 .cta{background:var(--accent);color:#fff;border-radius:24px;padding:48px;display:flex;align-items:center;justify-content:space-between;gap:30px}.cta h2{font-size:38px;line-height:1.05;margin:0}.cta p{margin-bottom:0;opacity:.9}
 .pro{display:grid;grid-template-columns:1fr 1fr;gap:45px;align-items:center}.check{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:25px 0}.check div{padding:15px;border:1px solid var(--line);border-radius:10px;font-weight:700}
 .form-wrap{background:var(--bg)}form{background:white;border:1px solid var(--line);border-radius:20px;padding:30px;box-shadow:0 12px 40px #1111110a}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}label{font-weight:800;font-size:13px;display:block;margin-bottom:7px}input,select,textarea{width:100%;padding:13px 14px;border:1px solid #dfe2e7;border-radius:9px;font:inherit;background:#fff}textarea{min-height:120px;resize:vertical}.full{grid-column:1/-1}.checks{display:flex;gap:18px;flex-wrap:wrap}.checks label{font-weight:600}.checks input{width:auto}
+
+.contact-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.contact-card{display:block;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px;text-decoration:none;color:inherit;transition:.2s}
+a.contact-card:hover{transform:translateY(-3px);box-shadow:0 12px 35px #1111110f;border-color:var(--accent)}
+.contact-card .icon{font-size:28px;margin-bottom:6px}
+.contact-card h3{font-size:19px;margin:4px 0 6px}
+.contact-card p{color:var(--muted);font-size:14px;margin:0 0 10px}
+.contact-card .placeholder-note{color:var(--text);font-weight:700}
+.contact-card .link{font-weight:800;color:var(--accent)}
 .faq{max-width:850px}.faq details{border-bottom:1px solid var(--line);padding:20px 0}.faq summary{font-weight:800;cursor:pointer}
 footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:30px}.footer-grid p,.footer-grid a{color:#9ea5ae;font-size:14px;display:block;margin:8px 0}.footer-title{font-weight:800;margin-bottom:14px}.copyright{border-top:1px solid #24282e;margin-top:35px;padding-top:20px;color:#7e858e;font-size:12px;display:flex;justify-content:space-between}
-@media(max-width:850px){nav{display:none}.menu{display:block}.nav>.btn{display:none}.trust-grid{grid-template-columns:1fr 1fr}.cards,.pro{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.price-grid{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.cta{display:block}.cta .btn{margin-top:22px}.hero{min-height:590px}}
+@media(max-width:850px){nav{display:none}.menu{display:block}.nav>.btn{display:none}.trust-grid{grid-template-columns:1fr 1fr}.cards,.pro{grid-template-columns:1fr}.steps{grid-template-columns:1fr 1fr}.price-grid{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr}.cta{display:block}.cta .btn{margin-top:22px}.hero{min-height:590px}.contact-grid{grid-template-columns:1fr}.map-embed{height:280px}}
 @media(max-width:560px){section{padding:62px 0}.hero-content{padding:60px 0}h1{letter-spacing:-2px}.hero p{font-size:16px}.trust-grid,.steps,.price-grid,.form-grid,.footer-grid{grid-template-columns:1fr}.full{grid-column:auto}.cta{padding:30px}.cta h2,.section-head h2{font-size:32px}.check{grid-template-columns:1fr}.copyright{display:block}.copyright span{display:block;margin-top:8px}}
 </style>
 </head>
@@ -51,9 +83,22 @@ footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:gr
       <a href="connexion.html">Se connecter</a>
     </nav>
     <a class="btn btn-primary" href="#devis">Demander un devis</a>
-    <button class="menu" aria-label="Menu">☰</button>
+    <button class="menu" id="menu-toggle" aria-label="Menu">☰</button>
   </div>
 </header>
+
+<div class="mobile-nav" id="mobile-nav">
+  <div class="panel">
+    <button class="close" id="menu-close" aria-label="Fermer">✕</button>
+    <a href="#services" data-nav-link>Services</a>
+    <a href="#zone" data-nav-link>Zone</a>
+    <a href="#tarifs" data-nav-link>Tarifs</a>
+    <a href="#pro" data-nav-link>Professionnels</a>
+    <a href="#prestataire" data-nav-link>Devenir prestataire</a>
+    <a href="connexion.html">Se connecter</a>
+    <a class="btn btn-primary" href="#devis" data-nav-link>Demander un devis</a>
+  </div>
+</div>
 
 <main>
 <section class="hero" id="accueil">
@@ -77,6 +122,16 @@ footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:gr
 </div>
 </section>
 
+<section class="clients-marquee">
+  <div class="marquee-label">Ils nous font confiance</div>
+  <div class="marquee-track">
+    <div class="marquee-content">
+      <span>SBR AUTO</span><span>Garage partenaire</span><span>Loueur régional</span><span>Concessionnaire auto</span><span>Flotte professionnelle</span><span>Parc automobile</span>
+      <span>SBR AUTO</span><span>Garage partenaire</span><span>Loueur régional</span><span>Concessionnaire auto</span><span>Flotte professionnelle</span><span>Parc automobile</span>
+    </div>
+  </div>
+</section>
+
 <section id="services">
 <div class="container">
   <div class="section-head"><span class="eyebrow">Nos services</span><h2>Une solution pour chaque déplacement.</h2><p>Du trajet local à la récupération d'un véhicule acheté à distance, SBR CONVOYAGE organise le déplacement de votre véhicule.</p></div>
@@ -93,10 +148,11 @@ footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:gr
 <section class="dark-section" id="zone">
 <div class="container">
   <div class="section-head"><span class="eyebrow">Zone d'intervention</span><h2>Basés à Marseille. Mobiles partout en France.</h2><p>Notre activité est principalement concentrée autour de Marseille et des Bouches-du-Rhône, avec des convoyages possibles selon votre demande.</p></div>
-  <div class="mapbox">
-    <div class="route"></div>
-    <span class="city paris">Paris</span><span class="city lyon">Lyon</span><span class="city aix">Aix-en-Provence</span>
-    <span class="city marseille">Marseille</span><span class="city aubagne">Aubagne</span><span class="city toulon">Toulon</span><span class="city nice">Nice</span>
+  <div class="map-embed">
+    <iframe title="Zone d'intervention SBR CONVOYAGE" src="https://www.openstreetmap.org/export/embed.html?bbox=3.9%2C42.6%2C7.6%2C44.3&amp;layer=mapnik&amp;marker=43.2965%2C5.3698" loading="lazy"></iframe>
+  </div>
+  <div class="city-chips">
+    <span>Marseille</span><span>Aix-en-Provence</span><span>Aubagne</span><span>Toulon</span><span>Nice</span><span>Avignon</span><span>Lyon</span><span>Paris</span>
   </div>
 </div>
 </section>
@@ -149,57 +205,34 @@ footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:gr
     <article class="card"><div class="icon">✅</div><h3>Profil vérifié</h3><p>Kbis, assurance pro, pièce d'identité, permis : un dossier complet pour un réseau de confiance.</p></article>
     <article class="card"><div class="icon">🤝</div><h3>Un réseau</h3><p>Une relation professionnelle claire, avec des missions proposées selon les besoins.</p></article>
   </div>
-  <div style="margin-top:30px; display:flex; gap:12px; flex-wrap:wrap;">
+  <div style="margin-top:30px;">
     <a class="btn btn-primary" href="inscription.html">Créer mon compte prestataire →</a>
-    <a class="btn btn-outline" href="#candidature">En savoir plus avant de m'inscrire</a>
   </div>
 </div>
 </section>
 
 <section id="devis" class="form-wrap">
 <div class="container">
-  <div class="section-head"><span class="eyebrow">Demande de devis</span><h2>Votre trajet commence ici.</h2><p>Remplissez les informations ci-dessous. Nous vous recontacterons pour étudier votre demande.</p></div>
-  <form onsubmit="event.preventDefault(); alert('Merci ! Votre demande a bien été préparée. Connectez ce formulaire à votre service email ou CRM pour recevoir les demandes.');">
-    <div class="form-grid">
-      <div><label>Nom / Prénom *</label><input required placeholder="Votre nom"></div>
-      <div><label>Entreprise</label><input placeholder="Nom de votre société"></div>
-      <div><label>Téléphone *</label><input required type="tel" placeholder="06 XX XX XX XX"></div>
-      <div><label>Email *</label><input required type="email" placeholder="vous@email.fr"></div>
-      <div><label>Lieu de départ *</label><input required placeholder="Adresse / parc automobile"></div>
-      <div><label>Destination *</label><input required placeholder="Ville / adresse"></div>
-      <div><label>Date souhaitée *</label><input required type="date"></div>
-      <div><label>Horaire souhaité</label><input type="time"></div>
-      <div><label>Marque *</label><input required placeholder="Ex. Peugeot"></div>
-      <div><label>Modèle *</label><input required placeholder="Ex. 208"></div>
-      <div><label>Immatriculation</label><input placeholder="AA-123-AA"></div>
-      <div><label>Année</label><input type="number" min="1900" max="2100" placeholder="2020"></div>
-      <div class="full"><label>Type de demande</label><div class="checks">
-        <label><input type="checkbox"> Convoyage</label><label><input type="checkbox"> Récupération sur parc</label><label><input type="checkbox"> Livraison</label><label><input type="checkbox"> Nettoyage</label><label><input type="checkbox"> Inspection</label><label><input type="checkbox"> Demande professionnelle</label>
-      </div></div>
-      <div class="full"><label>Le véhicule est-il roulant ?</label><select><option>Oui</option><option>Non</option><option>À préciser</option></select></div>
-      <div class="full"><label>Informations complémentaires</label><textarea placeholder="Décrivez votre besoin, contraintes d'accès, état du véhicule..."></textarea></div>
-      <div class="full"><label><input type="checkbox" required> J'accepte que mes informations soient utilisées pour traiter ma demande.</label></div>
-      <div class="full"><button class="btn btn-primary" type="submit">Demander mon devis →</button></div>
+  <div class="section-head"><span class="eyebrow">Contact</span><h2>Parlons de votre besoin.</h2><p>Le plus simple pour un devis rapide et adapté : appelez-nous ou écrivez-nous directement, nous revenons vers vous rapidement.</p></div>
+  <div class="contact-grid">
+    <a class="contact-card" href="tel:+33000000000">
+      <div class="icon">📞</div>
+      <h3>Par téléphone</h3>
+      <p class="placeholder-note">06 00 00 00 00</p>
+      <span class="link">Appeler →</span>
+    </a>
+    <a class="contact-card" href="mailto:contact@sbrconvoyage.fr">
+      <div class="icon">✉️</div>
+      <h3>Par email</h3>
+      <p class="placeholder-note">contact@sbrconvoyage.fr</p>
+      <span class="link">Écrire →</span>
+    </a>
+    <div class="contact-card">
+      <div class="icon">🕒</div>
+      <h3>Disponibilité</h3>
+      <p>Du lundi au vendredi, 8h-19h. Réponse sous 24h ouvrées.</p>
     </div>
-  </form>
-</div>
-</section>
-
-<section id="candidature">
-<div class="container">
-  <div class="section-head"><span class="eyebrow">Devenir prestataire</span><h2>Rejoignez SBR CONVOYAGE.</h2><p>Envie d'en dire un peu plus avant de créer ton compte ? Laisse-nous tes coordonnées ci-dessous. Sinon, <a class="link" href="inscription.html">crée directement ton compte prestataire →</a></p></div>
-  <form onsubmit="event.preventDefault(); alert('Merci ! Votre candidature a été préparée. Connectez ce formulaire à votre service email ou CRM.');">
-    <div class="form-grid">
-      <div><label>Nom / Prénom *</label><input required></div><div><label>Téléphone *</label><input required type="tel"></div>
-      <div><label>Email *</label><input required type="email"></div><div><label>Ville de résidence *</label><input required></div>
-      <div><label>Statut professionnel</label><select><option>Indépendant</option><option>Entreprise</option><option>Autre</option></select></div>
-      <div><label>Expérience</label><select><option>Débutant</option><option>Moins de 2 ans</option><option>2 à 5 ans</option><option>Plus de 5 ans</option></select></div>
-      <div class="full"><label>Zone d'intervention</label><input placeholder="Ex. Marseille, PACA, France entière"></div>
-      <div class="full"><label>Disponibilités</label><input placeholder="Ex. Semaine, week-end, ponctuellement..."></div>
-      <div class="full"><label>Message</label><textarea placeholder="Présentez votre expérience et votre profil..."></textarea></div>
-      <div class="full"><button class="btn btn-primary" type="submit">Envoyer ma candidature →</button></div>
-    </div>
-  </form>
+  </div>
 </div>
 </section>
 
@@ -224,12 +257,22 @@ footer{background:#080a0d;color:#fff;padding:55px 0 25px}.footer-grid{display:gr
   <div class="footer-grid">
     <div><div class="logo"><img src="icons/logo-mark.png" alt="SBR CONVOYAGE">SBR<span>CONVOYAGE</span></div><p>Le convoyage automobile, simplement.</p><p>Marseille • PACA • France</p></div>
     <div><div class="footer-title">Navigation</div><a href="#accueil">Accueil</a><a href="#services">Services</a><a href="#tarifs">Tarifs</a><a href="#devis">Demander un devis</a></div>
-    <div><div class="footer-title">Professionnels</div><a href="#pro">Solutions pro</a><a href="#prestataire">Devenir prestataire</a><a href="#candidature">Candidature</a></div>
+    <div><div class="footer-title">Professionnels</div><a href="#pro">Solutions pro</a><a href="#prestataire">Devenir prestataire</a><a href="inscription.html">Créer mon compte</a></div>
     <div><div class="footer-title">Informations</div><a href="mentions-legales.html">Mentions légales</a><a href="mentions-legales.html">Politique de confidentialité</a><a href="#">CGV</a><a href="mentions-legales.html">Cookies</a></div>
   </div>
   <div class="copyright"><span>© 2026 SBR CONVOYAGE — Tous droits réservés.</span><span>Site vitrine — demande de devis en ligne</span></div>
 </div>
 </footer>
+
+<script>
+const mobileNav = document.getElementById('mobile-nav');
+document.getElementById('menu-toggle').addEventListener('click', () => mobileNav.classList.add('open'));
+document.getElementById('menu-close').addEventListener('click', () => mobileNav.classList.remove('open'));
+mobileNav.addEventListener('click', (e) => { if (e.target === mobileNav) mobileNav.classList.remove('open'); });
+mobileNav.querySelectorAll('[data-nav-link]').forEach(a => {
+  a.addEventListener('click', () => mobileNav.classList.remove('open'));
+});
+</script>
 
 <script>
 if ('serviceWorker' in navigator) {
