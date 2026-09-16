@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR CONVOYAGE — Connexion</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBR CONVOYAGE">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="login-screen">
+  <div class="login-box">
+    <div class="brand">
+      <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
+      <div class="names">
+        <h1>SBR CONVOYAGE</h1>
+        <span class="sub">Missions &amp; prestataires</span>
+      </div>
+    </div>
+    <div class="intro">Convoyage, nettoyage, inspection — connecte-toi pour voir tes missions.</div>
+
+    <div class="login-panel">
+      <div id="msg"></div>
+      <form id="login-form">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;padding:11px;">Se connecter</button>
+      </form>
+    </div>
+
+    <div style="text-align:center; margin-top:16px;">
+      <a href="inscription.html" style="color:var(--text-muted); font-size:13px;">Pas encore de compte ? S'inscrire comme prestataire</a>
+    </div>
+    <div style="text-align:center; margin-top:10px;">
+      <a href="index.html" style="color:var(--text-faint); font-size:12.5px;">← Retour au site</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('login-form');
+const msgEl = document.getElementById('msg');
+
+function showMsg(text, type) {
+  msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+}
+
+async function redirectByRole(userId) {
+  const { data: profile, error } = await supabaseClient
+    .from('profiles')
+    .select('role, actif, en_attente_validation')
+    .eq('id', userId)
+    .single();
+
+  if (error || !profile) {
+    showMsg("Compte non configuré. Contacte l'administrateur.", 'error');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  if (profile.en_attente_validation) {
+    showMsg("Ton inscription est bien reçue et en attente de validation par l'administrateur. Reviens un peu plus tard.", 'ok');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  if (!profile.actif) {
+    showMsg("Ce compte est désactivé.", 'error');
+    await supabaseClient.auth.signOut();
+    return;
+  }
+  window.location.href = profile.role === 'admin' ? 'admin.html' : 'prestataire.html';
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    if (error.message.includes('Email not confirmed')) {
+      showMsg("Email non confirmé. Dans Supabase, réédite l'utilisateur (Authentication → Users) et confirme son email, ou recrée-le en cochant \"Auto Confirm User\".", 'error');
+    } else if (error.message.includes('Invalid login credentials')) {
+      showMsg("Email ou mot de passe incorrect.", 'error');
+    } else if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+      showMsg("Connexion au serveur impossible — vérifie que SUPABASE_URL et SUPABASE_ANON_KEY sont bien renseignés dans config.js.", 'error');
+    } else {
+      showMsg("Erreur : " + error.message, 'error');
+    }
+    return;
+  }
+  await redirectByRole(data.user.id);
+});
+
+(async () => {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) await redirectByRole(session.user.id);
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
