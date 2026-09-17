@@ -1,131 +1,148 @@
-// SBR AUTO — Fonction Edge "notify-mission"
+// SBR CONVOYAGE — Fonction Edge "verify-document"
 //
-// Déclenchée par un Database Webhook Supabase sur la table "missions" :
-//  - INSERT (nouvelle mission "disponible") -> email aux prestataires
-//    actifs dont la spécialité correspond au type de mission
-//  - UPDATE (statut passe de "disponible" à "acceptee") -> email aux
-//    admins pour les prévenir qu'une mission a été prise
+// Analyse un document déposé par un prestataire (Kbis, assurance pro, CNI,
+// permis) via l'API Claude (Anthropic), pour un premier contrôle
+// automatique en complément — jamais en remplacement — d'une vérification
+// humaine. Le résultat est stocké dans la table "document_verifications",
+// visible côté admin.
 //
-// Envoi des emails via Resend (https://resend.com — gratuit jusqu'à
-// 3000 emails/mois, aucune carte bancaire requise pour démarrer).
+// Appelée directement par le client (inscription.html, prestataire.html)
+// via supabaseClient.functions.invoke('verify-document', { body: {...} }),
+// juste après l'upload d'un document.
 //
-// Variables d'environnement à configurer (voir README) :
-//   RESEND_API_KEY   - ta clé API Resend
-//   RESEND_FROM      - adresse expéditrice, ex: "SBR AUTO <notifs@tondomaine.fr>"
-//                       (ou "SBR AUTO <onboarding@resend.dev>" en test)
-// SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournies automatiquement
-// par Supabase à toutes les fonctions Edge, pas besoin de les définir.
+// ⚠️ IMPORTANT — vie privée : la CNI et le permis de conduire contiennent
+// des données personnelles. Ce fichier est envoyé à l'API Claude
+// (Anthropic, société tierce) pour analyse. Les prompts ci-dessous
+// demandent explicitement à l'IA de ne jamais recopier ces données dans
+// son verdict (juste dire si le document est lisible et correspond au
+// type attendu), mais le fichier lui-même transite par ce tiers. Mentionne
+// ce traitement dans tes mentions légales / politique de confidentialité
+// si tu actives cette fonction (voir mentions-legales.html).
+//
+// Variables d'environnement à configurer :
+//   ANTHROPIC_API_KEY — ta clé API Anthropic (console.anthropic.com)
+// SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont fournies automatiquement.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-const RESEND_FROM = Deno.env.get("RESEND_FROM") || "SBR AUTO <onboarding@resend.dev>";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-const TYPE_LABEL: Record<string, string> = {
-  convoyage: "Convoyage",
-  nettoyage: "Nettoyage",
-  inspection: "Inspection",
-  autre: "Autre",
+const DOC_PROMPTS: Record<string, string> = {
+  kbis:
+    "Ceci est un document fourni par un prestataire, censé être un extrait " +
+    "Kbis (ou justificatif d'immatriculation d'entreprise français " +
+    "équivalent). Vérifie s'il s'agit bien de ce type de document, s'il " +
+    "est lisible, et si un nom d'entreprise et un numéro SIREN/SIRET sont " +
+    "visibles. Réponds UNIQUEMENT en JSON strict, sans texte autour : " +
+    '{"verdict":"conforme"|"a_verifier"|"suspect","commentaire":"<2 phrases max, en français>"}.',
+  assurance:
+    "Ceci est un document fourni par un prestataire, censé être une " +
+    "attestation d'assurance responsabilité civile professionnelle. " +
+    "Vérifie s'il s'agit bien de ce type de document, s'il est lisible, " +
+    "et si une période de validité est visible. Réponds UNIQUEMENT en " +
+    'JSON strict : {"verdict":"conforme"|"a_verifier"|"suspect","commentaire":"<2 phrases max, en français>"}.',
+  cni:
+    "Ceci est un document fourni par un prestataire, censé être une pièce " +
+    "d'identité (CNI, passeport ou titre de séjour). Indique SEULEMENT " +
+    "s'il s'agit bien d'un document d'identité officiel, lisible et non " +
+    "manifestement trafiqué. Ne recopie JAMAIS le nom, la date de " +
+    "naissance, l'adresse ou le numéro du document dans ta réponse. " +
+    'Réponds UNIQUEMENT en JSON strict : {"verdict":"conforme"|"a_verifier"|"suspect","commentaire":"<2 phrases max, sans aucune donnée personnelle>"}.',
+  permis:
+    "Ceci est un document fourni par un prestataire, censé être un permis " +
+    "de conduire. Indique SEULEMENT s'il s'agit bien d'un permis de " +
+    "conduire officiel, lisible et non manifestement trafiqué. Ne " +
+    "recopie JAMAIS le nom, la date de naissance ou le numéro du permis " +
+    'dans ta réponse. Réponds UNIQUEMENT en JSON strict : {"verdict":"conforme"|"a_verifier"|"suspect","commentaire":"<2 phrases max, sans aucune donnée personnelle>"}.',
 };
 
-async function sendEmail(to: string, subject: string, html: string) {
+Deno.serve(async (req) => {
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const { prestataire_id, doc_type, path } = await req.json();
+    if (!prestataire_id || !path || !DOC_PROMPTS[doc_type]) {
+      return new Response(JSON.stringify({ error: "paramètres invalides" }), { status: 400 });
+    }
+
+    const { data: signedData, error: signErr } = await supabase
+      .storage.from("documents").createSignedUrl(path, 300);
+    if (signErr) throw signErr;
+
+    const fileRes = await fetch(signedData.signedUrl);
+    if (!fileRes.ok) throw new Error("Fichier introuvable");
+    const contentType = fileRes.headers.get("content-type") || "application/octet-stream";
+    const buf = new Uint8Array(await fileRes.arrayBuffer());
+
+    // Taille de sécurité : on n'envoie pas des fichiers énormes à l'API
+    if (buf.byteLength > 15 * 1024 * 1024) {
+      throw new Error("Fichier trop volumineux pour la vérification automatique");
+    }
+
+    let binary = "";
+    for (let i = 0; i < buf.length; i += 8192) {
+      binary += String.fromCharCode(...buf.subarray(i, i + 8192));
+    }
+    const base64 = btoa(binary);
+
+    const isPdf = contentType.includes("pdf");
+    const mediaType = isPdf ? "application/pdf" : (contentType.includes("image") ? contentType : "image/jpeg");
+
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
-      body: JSON.stringify({ from: RESEND_FROM, to, subject, html }),
+      body: JSON.stringify({
+        model: "claude-sonnet-5",
+        max_tokens: 300,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: isPdf ? "document" : "image",
+                source: { type: "base64", media_type: mediaType, data: base64 },
+              },
+              { type: "text", text: DOC_PROMPTS[doc_type] },
+            ],
+          },
+        ],
+      }),
     });
-    if (!res.ok) console.error("Resend error", await res.text());
+
+    if (!aiRes.ok) throw new Error("Erreur API Claude : " + (await aiRes.text()));
+    const aiJson = await aiRes.json();
+    const text = (aiJson.content || []).map((b: any) => b.text || "").join("");
+
+    let parsed: { verdict?: string; commentaire?: string };
+    try {
+      parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+    } catch {
+      parsed = { verdict: "a_verifier", commentaire: "Analyse IA non exploitable — à vérifier manuellement." };
+    }
+
+    const verdict = ["conforme", "a_verifier", "suspect"].includes(parsed.verdict || "")
+      ? parsed.verdict
+      : "a_verifier";
+
+    await supabase.from("document_verifications").upsert(
+      {
+        prestataire_id,
+        doc_type,
+        statut: verdict,
+        commentaire: parsed.commentaire || null,
+        verifie_le: new Date().toISOString(),
+      },
+      { onConflict: "prestataire_id,doc_type" }
+    );
+
+    return new Response(JSON.stringify({ ok: true, verdict }), { status: 200 });
   } catch (e) {
-    console.error("Erreur envoi email", e);
+    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
   }
-}
-
-async function emailFor(userId: string): Promise<string | null> {
-  const { data, error } = await supabase.auth.admin.getUserById(userId);
-  if (error || !data?.user?.email) return null;
-  return data.user.email;
-}
-
-Deno.serve(async (req) => {
-  let payload: any;
-  try {
-    payload = await req.json();
-  } catch {
-    return new Response("bad payload", { status: 400 });
-  }
-
-  const { type, table, record, old_record } = payload;
-  if (table !== "missions") return new Response("ignored", { status: 200 });
-
-  // --- Nouvelle mission publiée -> notifier les prestataires concernés ---
-  if (type === "INSERT" && record.statut === "disponible") {
-    const { data: prestataires, error } = await supabase
-      .from("profiles")
-      .select("id, nom")
-      .eq("role", "prestataire")
-      .eq("actif", true)
-      .contains("specialites", [record.type]);
-
-    if (!error) {
-      for (const p of prestataires || []) {
-        const email = await emailFor(p.id);
-        if (!email) continue;
-        await sendEmail(
-          email,
-          `Nouvelle mission ${TYPE_LABEL[record.type] || record.type} — ${record.titre}`,
-          `<p>Bonjour ${p.nom},</p>
-           <p>Une nouvelle mission vient d'être publiée sur SBR AUTO :</p>
-           <p><strong>${record.titre}</strong> (${TYPE_LABEL[record.type] || record.type})<br>
-           ${record.vehicule ? `Véhicule : ${record.vehicule}<br>` : ""}
-           ${record.lieu_depart ? `Départ : ${record.lieu_depart}<br>` : ""}
-           ${record.lieu_arrivee ? `Arrivée : ${record.lieu_arrivee}<br>` : ""}
-           Prix : ${record.prix_ht} € HT</p>
-           <p>Connecte-toi sur SBR AUTO pour l'accepter si tu es disponible.</p>`
-        );
-      }
-    }
-  }
-
-  // --- Mission acceptée -> notifier les admins ---
-  if (
-    type === "UPDATE" &&
-    old_record?.statut === "disponible" &&
-    record.statut === "acceptee"
-  ) {
-    const { data: admins } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("role", "admin");
-
-    let prestataireNom = "Un prestataire";
-    if (record.prestataire_id) {
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("nom")
-        .eq("id", record.prestataire_id)
-        .single();
-      if (p) prestataireNom = p.nom;
-    }
-
-    for (const a of admins || []) {
-      const email = await emailFor(a.id);
-      if (!email) continue;
-      await sendEmail(
-        email,
-        `Mission acceptée — ${record.titre}`,
-        `<p>${prestataireNom} vient d'accepter la mission <strong>${record.titre}</strong>
-         (${TYPE_LABEL[record.type] || record.type}).</p>`
-      );
-    }
-  }
-
-  return new Response("ok", { status: 200 });
 });

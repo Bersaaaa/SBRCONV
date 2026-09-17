@@ -83,10 +83,29 @@
           </div>
           <div class="field-hint">L'administrateur pourra les ajuster à la validation de ton compte.</div>
         </div>
-        <div class="field-hint" style="margin-bottom:14px;">
-          Une fois ton compte validé, tu pourras déposer tes documents
-          (Kbis, assurance pro, CNI, permis de conduire) depuis ton espace,
-          dans "Mes documents".
+        <div class="field-hint" style="margin-bottom:14px;">L'administrateur pourra les ajuster à la validation de ton compte.</div>
+        <hr class="divider">
+        <div class="field-hint" style="margin-bottom:14px; font-weight:600; color:var(--text);">
+          Documents obligatoires — nécessaires pour valider ton inscription.
+          Ils restent privés (toi et l'administrateur uniquement), et sont
+          vérifiés automatiquement par une IA en complément de la
+          vérification humaine.
+        </div>
+        <div class="field">
+          <label for="doc-kbis">Extrait Kbis (ou justificatif équivalent) *</label>
+          <input type="file" id="doc-kbis" accept="image/*,application/pdf" required>
+        </div>
+        <div class="field">
+          <label for="doc-assurance">Attestation d'assurance responsabilité civile pro *</label>
+          <input type="file" id="doc-assurance" accept="image/*,application/pdf" required>
+        </div>
+        <div class="field">
+          <label for="doc-cni">Carte nationale d'identité *</label>
+          <input type="file" id="doc-cni" accept="image/*,application/pdf" required>
+        </div>
+        <div class="field">
+          <label for="doc-permis">Permis de conduire *</label>
+          <input type="file" id="doc-permis" accept="image/*,application/pdf" required>
         </div>
         <button type="submit" class="btn btn-primary" id="inscription-submit" style="width:100%;padding:11px;">Envoyer ma demande</button>
       </form>
@@ -168,6 +187,19 @@ form.addEventListener('submit', async (e) => {
   const specialites = ['convoyage', 'nettoyage', 'inspection']
     .filter(s => document.getElementById('spec-' + s).checked);
 
+  const docFiles = {
+    kbis: document.getElementById('doc-kbis').files[0],
+    assurance: document.getElementById('doc-assurance').files[0],
+    cni: document.getElementById('doc-cni').files[0],
+    permis: document.getElementById('doc-permis').files[0],
+  };
+  if (!docFiles.kbis || !docFiles.assurance || !docFiles.cni || !docFiles.permis) {
+    showMsg('Les 4 documents (Kbis, assurance, CNI, permis) sont obligatoires.', 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Envoyer ma demande';
+    return;
+  }
+
   try {
     const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
     if (signUpError) throw signUpError;
@@ -188,8 +220,40 @@ form.addEventListener('submit', async (e) => {
     });
     if (profileError) throw profileError;
 
+    if (!signUpData.session) {
+      form.classList.add('hidden');
+      showMsg("Compte créé ! Confirme ton email via le lien reçu, puis connecte-toi pour déposer tes documents (Kbis, assurance, CNI, permis) dans \"Mes documents\" — ton dossier ne sera étudié qu'une fois complet.", 'ok');
+      return;
+    }
+
+    submitBtn.textContent = 'Envoi des documents...';
+    const paths = {};
+    for (const [key, file] of Object.entries(docFiles)) {
+      const path = `${signUpData.user.id}/${key}-${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabaseClient.storage.from('documents').upload(path, file);
+      if (upErr) throw upErr;
+      paths[key] = path;
+    }
+
+    const { error: rpcErr } = await supabaseClient.rpc('update_mes_documents_prestataire', {
+      p_nom_societe: nom_societe || null,
+      p_site_web: site_web || null,
+      p_doc_kbis_path: paths.kbis,
+      p_doc_assurance_path: paths.assurance,
+      p_doc_cni_path: paths.cni,
+      p_doc_permis_path: paths.permis
+    });
+    if (rpcErr) throw rpcErr;
+
+    // Vérification IA en tâche de fond (n'empêche pas l'inscription si ça échoue)
+    Object.entries(paths).forEach(([doc_type, path]) => {
+      supabaseClient.functions.invoke('verify-document', {
+        body: { prestataire_id: signUpData.user.id, doc_type, path }
+      }).catch(() => {});
+    });
+
     form.classList.add('hidden');
-    showMsg("Demande envoyée ! Si ton email n'était pas encore confirmé, vérifie ta boîte mail. L'administrateur doit maintenant valider ton compte avant que tu puisses accéder aux missions.", 'ok');
+    showMsg("Demande envoyée avec tous tes documents ! L'administrateur doit maintenant valider ton compte avant que tu puisses accéder aux missions.", 'ok');
   } catch (err) {
     showMsg("Erreur : " + (err.message || err), 'error');
     submitBtn.disabled = false;
