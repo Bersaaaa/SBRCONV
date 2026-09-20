@@ -41,7 +41,9 @@ pas encore passées :
 6. `migration_v7.sql` (auto-inscription prestataire, suivi des relances automatiques) — si pas encore fait.
 7. `migration_v8.sql` (score de fiabilité, tableau de bord, suivi des paiements) — si pas encore fait.
 8. `migration_v9.sql` (informations légales : SIRET, forme juridique, adresse) — si pas encore fait.
-9. `migration_v10.sql` (documents prestataire : Kbis, assurance pro, CNI, permis — stockage privé).
+9. `migration_v10.sql` (documents prestataire : Kbis, assurance pro, CNI, permis — stockage privé) — si pas encore fait.
+10. `migration_v11.sql` (vérification automatique des documents par IA) — si pas encore fait.
+11. `migration_v12.sql` (nom du client sur la mission, pour le contrat).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -183,6 +185,38 @@ La fonction elle-même sait faire le tri (nouvelle mission vs. mission
 acceptée) à partir de ce qui a changé — pas besoin de filtrer côté
 webhook.
 
+### Vérification automatique des documents par IA (optionnel)
+
+Depuis cette mise à jour, l'inscription prestataire **exige** les 4
+documents (Kbis, assurance pro, CNI, permis) avant de pouvoir envoyer la
+demande — c'est une vraie contrainte du formulaire, pas juste une
+recommandation. En complément, une IA (API Claude) peut faire un premier
+contrôle automatique de chaque document déposé (type de document
+reconnu, lisible, cohérent) et écrire son verdict à côté de chaque
+document dans le panneau Prestataires — **ça ne remplace jamais ta
+vérification humaine**, c'est juste un premier filtre.
+
+1. Crée une clé API sur **console.anthropic.com** si tu n'en as pas déjà une.
+2. Déploie la fonction : `supabase functions deploy verify-document`.
+3. Configure le secret : `supabase secrets set ANTHROPIC_API_KEY=ta_cle`.
+4. C'est tout — la fonction est appelée automatiquement par le site à
+   chaque dépôt de document (inscription ou "Mes documents"), pas besoin
+   de Cron ni de webhook pour celle-ci.
+
+⚠️ **Vie privée** : la CNI et le permis contiennent des données
+personnelles. Les prompts envoyés à l'IA lui demandent explicitement de
+ne jamais recopier ces données dans son verdict (juste dire si le
+document est lisible et correspond au bon type), mais le fichier
+transite techniquement par l'API d'Anthropic pour l'analyse. C'est déjà
+mentionné dans `mentions-legales.html` — relis cette section si tu
+actives la fonction, et assure-toi que ça correspond à ce que tu veux
+faire avec ces documents.
+
+Si tu ne configures pas cette fonction, les documents restent
+uploadables et consultables normalement — seul le petit encart "verdict
+IA" restera vide ("IA en cours...") indéfiniment, sans bloquer quoi que
+ce soit.
+
 ### Relance automatique (optionnel, nécessite les emails ci-dessus)
 
 Si une mission reste "disponible" plus de 24h sans prestataire, un email
@@ -215,6 +249,80 @@ toutes les missions concernées, pas un par mission).
    Project Settings → API).
 
 ## Fonctionnement
+
+- **Contrat cadre enrichi** (inspiré de contrats du secteur du convoyage) :
+  durée de 6 mois renouvelable par tacite reconduction (périodes de 3
+  mois, préavis 15 jours), résiliation anticipée en cas de manquement
+  grave (faux documents, suspicion de vol, comportement dangereux),
+  qualités du prestataire (permis valide depuis plus de 3 ans),
+  **mandat de facturation** (le prestataire te donne mandat pour établir
+  les factures en son nom, sauf opposition écrite de sa part), infractions
+  à sa charge, force majeure, cession interdite. 14 articles au total.
+- **Contrat de mission** : nouveau champ facultatif "Nom du client" à la
+  création d'une mission, repris sur le contrat généré à l'acceptation.
+- **Relevé hebdomadaire prestataire** : bouton "🗓️ Récap hebdo" dans son
+  espace → missions clôturées cette semaine, total, statut payé/à payer,
+  et un bouton pour télécharger un relevé PDF officiel (généré par
+  SBR CONVOYAGE au nom du prestataire, cohérent avec le mandat de
+  facturation du contrat).
+- **CGV** : nouvelle page `cgv.html`, liée depuis le pied de page —
+  objet, tarifs/paiement (avec les pénalités de retard légales),
+  exécution, responsabilité, annulation, litiges.
+  ⚠️ Modèle standard à adapter/faire relire, comme les mentions légales.
+- **Clients qui défilent** : mis à jour avec tes vrais noms (SBR AUTO,
+  Remote Loc, DJ TRANSPORT).
+- **Photos compressées automatiquement** : les photos d'état des lieux
+  sont redimensionnées et compressées côté prestataire avant l'envoi
+  (plus rapide, moins de data, en particulier depuis un mobile).
+
+- **Documents obligatoires à l'inscription** : impossible d'envoyer sa
+  demande sans avoir joint les 4 documents (Kbis, assurance pro, CNI,
+  permis) — ce sont des champs obligatoires du formulaire, le navigateur
+  bloque l'envoi tant qu'ils ne sont pas tous sélectionnés. S'il faut
+  confirmer son email avant de pouvoir se connecter (selon tes réglages
+  Supabase), les documents sont à déposer juste après, dans "Mes
+  documents" — mais dans la configuration la plus courante (sans
+  confirmation email), tout se fait en une seule fois à l'inscription.
+- **Vérification IA des documents** (optionnelle, voir section dédiée
+  plus bas) : verdict affiché à côté de chaque document, aussi bien côté
+  prestataire que côté admin — jamais un remplacement de ta propre
+  vérification.
+- **Recherche de missions** : au-dessus du tableau de missions dans
+  `admin.html`, un champ recherche (titre, véhicule, prestataire, lieu)
+  et un filtre par type, pour retrouver rapidement une mission une fois
+  qu'il y en a beaucoup.
+
+- **Vitrine dans l'esprit Otoqi** : le formulaire "devenir prestataire"
+  (candidature détaillée) a été retiré — il ne reste qu'un seul bouton
+  clair "Créer mon compte prestataire" vers `inscription.html`. Le grand
+  formulaire de devis (12+ champs) a été remplacé par une section
+  "Contact" simple : téléphone, email, horaires — cliquables directement
+  (appel / email) plutôt qu'un formulaire à remplir.
+  ⚠️ **Numéro et email sont des placeholders** (`06 00 00 00 00` /
+  `contact@sbrconvoyage.fr`) — remplace-les par tes vraies coordonnées
+  dans `index.html` (cherche `tel:+33000000000` et `contact@sbrconvoyage.fr`).
+- **Vraie carte** : la zone d'intervention affiche maintenant une carte
+  OpenStreetMap réelle (gratuite, sans clé API) centrée sur Marseille/PACA,
+  à la place des villes positionnées à la main en CSS.
+- **Bande "Ils nous font confiance"** : logos/noms clients qui défilent en
+  continu, inspiré des plateformes de convoyage B2B établies. Seul "SBR
+  AUTO" est un vrai nom (ta propre activité) ; les autres
+  ("Garage partenaire", "Loueur régional"...) sont des **placeholders
+  génériques** à remplacer par de vrais noms de clients (ou mieux, leurs
+  logos) dès que tu en as — ne publie pas de noms d'entreprises inventés
+  comme s'il s'agissait de vrais clients.
+
+- **Design/UX** : le menu ☰ du site vitrine sur mobile ne faisait rien
+  (juste décoratif) — il ouvre maintenant un vrai panneau de navigation.
+  La barre de boutons de l'admin (Paiements, Tableau de bord, etc.)
+  débordait sur petit écran — elle défile maintenant horizontalement au
+  lieu de casser la mise en page. Les fenêtres (état des lieux, facture,
+  notation, signature...) s'ouvrent avec une animation douce plutôt que
+  d'apparaître brutalement. Les écrans de chargement ont un vrai indicateur
+  visuel plutôt qu'un texte "Chargement...". Le fond de la page d'accueil
+  n'utilise plus une image externe (Unsplash) mais un dégradé de marque
+  avec le motif "route" repris du logo — plus rapide à charger et plus
+  cohérent visuellement.
 
 - **Nouveau logo et PWA renforcée** : ton logo (voiture + route) est
   utilisé partout. Les balises manquantes pour une vraie installation en

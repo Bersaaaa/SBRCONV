@@ -28,7 +28,8 @@
     </div>
   </div>
   <div class="right">
-    <button class="btn btn-ghost" id="mes-documents-btn">Mes documents</button>
+    <button class="btn btn-ghost" id="recap-btn">🗓️ Récap hebdo</button>
+    <button class="btn btn-ghost" id="mes-documents-btn">📄 Mes documents</button>
     <span id="who"></span>
     <button class="btn btn-ghost" id="logout-btn">Déconnexion</button>
   </div>
@@ -73,7 +74,7 @@
 </div>
 
 <!-- Modale état des lieux -->
-<div class="hidden" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow:auto;">
+<div class="hidden modal-overlay" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow:auto;">
   <div class="panel" style="max-width:480px;width:100%;max-height:88vh;overflow:auto;">
     <div class="panel-head">
       <strong id="edl-title">État des lieux</strong>
@@ -126,7 +127,19 @@
 
 <!-- Modale signature du contrat -->
 <!-- Modale Mes documents -->
-<div class="hidden" id="documents-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;overflow:auto;">
+<!-- Modale récapitulatif hebdomadaire -->
+<div class="hidden modal-overlay" id="recap-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;overflow:auto;">
+  <div class="panel" style="max-width:480px;width:100%;max-height:88vh;overflow:auto;">
+    <div class="panel-head">
+      <strong>Récapitulatif de la semaine</strong>
+      <button class="btn btn-ghost" id="recap-close" type="button">Fermer</button>
+    </div>
+    <div id="recap-content"></div>
+    <button type="button" class="btn btn-primary" id="recap-pdf-btn" style="width:100%;padding:11px;margin-top:14px;">Télécharger mon relevé (PDF)</button>
+  </div>
+</div>
+
+<div class="hidden modal-overlay" id="documents-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;overflow:auto;">
   <div class="panel" style="max-width:480px;width:100%;max-height:90vh;overflow:auto;">
     <div class="panel-head">
       <strong>Mes documents</strong>
@@ -152,7 +165,7 @@
   </div>
 </div>
 
-<div class="hidden" id="sign-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;">
+<div class="hidden modal-overlay" id="sign-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;">
   <div class="panel" style="max-width:460px;width:100%;max-height:90vh;overflow:auto;">
     <div class="panel-head">
       <strong>Signer le contrat</strong>
@@ -408,6 +421,7 @@ async function buildContratPdf(mission, prestataireNom) {
   y = pdfSectionTitle(doc, 'Mission', y);
   y = pdfKeyValues(doc, [
     ['Titre', mission.titre],
+    ['Client', mission.nom_client],
     ['Type', TYPE_LABEL[mission.type] || mission.type],
     ['Véhicule', mission.vehicule],
     ['Trajet', (mission.lieu_depart || mission.lieu_arrivee) ? `${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}` : null],
@@ -499,12 +513,34 @@ function renderPreviews() {
   });
 }
 
-function addFiles(fileList) {
-  Array.from(fileList).forEach(file => {
-    if (!file.type.startsWith('image/')) return;
-    file._previewUrl = URL.createObjectURL(file);
-    selectedFiles.push(file);
-  });
+async function compressImage(file, maxDim = 1600, quality = 0.75) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      const ratio = Math.min(maxDim / width, maxDim / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob) return file;
+    const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+    return compressed.size < file.size ? compressed : file;
+  } catch (e) {
+    return file; // si la compression échoue, on garde le fichier original
+  }
+}
+
+async function addFiles(fileList) {
+  const imageFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  for (const file of imageFiles) {
+    const compressed = await compressImage(file);
+    compressed._previewUrl = URL.createObjectURL(compressed);
+    selectedFiles.push(compressed);
+  }
   renderPreviews();
 }
 
@@ -787,9 +823,20 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 34);
-  y = pdfSectionTitle(doc, 'Article 4 — Obligations des parties', y);
+  y = pdfEnsureSpace(doc, y, 46);
+  y = pdfSectionTitle(doc, 'Article 4 — Qualités et obligations du Prestataire', y);
   y = pdfParagraph(doc, [
+    "Le Prestataire déclare être titulaire d'un permis de conduire français",
+    "(ou équivalence délivrée par une préfecture française) valide depuis",
+    "plus de 3 ans, correspondant aux véhicules qu'il est amené à convoyer,",
+    "et non suspendu à la date de signature ni aux dates d'exécution d'une",
+    "mission.",
+    '',
+    "Le Prestataire certifie l'exactitude et l'authenticité des documents",
+    "communiqués à la Société (pièce d'identité, permis, Kbis, attestation",
+    "d'assurance). Tout faux document est passible, outre la résiliation du",
+    "présent contrat, de poursuites judiciaires.",
+    '',
     "Le Prestataire s'engage à exécuter les missions acceptées avec soin et",
     "professionnalisme, à renseigner un état des lieux du véhicule avant et",
     "après chaque intervention, et à respecter les délais convenus.",
@@ -799,12 +846,18 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 26);
-  y = pdfSectionTitle(doc, 'Article 5 — Rémunération et paiement', y);
+  y = pdfEnsureSpace(doc, y, 42);
+  y = pdfSectionTitle(doc, 'Article 5 — Rémunération, paiement et mandat de facturation', y);
   y = pdfParagraph(doc, [
     'Le règlement des missions réalisées intervient chaque lundi, pour',
     "l'ensemble des missions clôturées et facturées au cours de la semaine",
     "précédente, par virement sur le compte communiqué par le Prestataire.",
+    '',
+    "Sauf opposition écrite du Prestataire, celui-ci donne mandat à la",
+    "Société pour établir, en son nom et pour son compte, les factures",
+    "relatives aux missions réalisées, conformément à la réglementation",
+    "applicable au mandat de facturation. Le Prestataire conserve l'entière",
+    "responsabilité de ses obligations fiscales et sociales.",
   ], y);
 
   y += 4;
@@ -838,18 +891,58 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 22);
-  y = pdfSectionTitle(doc, 'Article 9 — Durée et résiliation', y);
+  y = pdfEnsureSpace(doc, y, 40);
+  y = pdfSectionTitle(doc, 'Article 9 — Durée et reconduction', y);
   y = pdfParagraph(doc, [
-    "Le présent contrat est conclu pour une durée indéterminée à compter de",
-    "sa signature. Chaque partie peut y mettre fin à tout moment, moyennant",
-    "un préavis de 15 jours notifié par écrit, sans préjudice des missions",
-    "en cours qui devront être menées à leur terme.",
+    "Le présent contrat est conclu pour une durée de six (6) mois à compter",
+    "de sa signature, renouvelable par tacite reconduction par périodes de",
+    "trois (3) mois, sauf dénonciation par l'une ou l'autre des parties,",
+    "sans justification nécessaire, moyennant un préavis de quinze (15)",
+    "jours notifié par écrit, sans préjudice des missions en cours qui",
+    "devront être menées à leur terme.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 32);
+  y = pdfSectionTitle(doc, 'Article 10 — Résiliation anticipée pour manquement grave', y);
+  y = pdfParagraph(doc, [
+    "Le contrat pourra être résilié par la Société sans préavis en cas de",
+    "manquement grave du Prestataire, notamment : communication de faux",
+    "documents ou de documents ne correspondant pas à son identité,",
+    "suspicion de vol ou de dégradation volontaire d'un véhicule confié, ou",
+    "comportement dangereux ou inadapté envers des tiers.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 11 — Infractions et amendes', y);
+  y = pdfParagraph(doc, [
+    "Les infractions au code de la route, amendes et contraventions",
+    "commises par le Prestataire lors de l'exécution d'une mission sont à",
+    "sa charge exclusive.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 12 — Force majeure', y);
+  y = pdfParagraph(doc, [
+    "Aucune des parties ne pourra être tenue responsable d'un retard ou",
+    "d'une inexécution résultant d'un cas de force majeure au sens de",
+    "l'article 1218 du Code civil.",
   ], y);
 
   y += 4;
   y = pdfEnsureSpace(doc, y, 20);
-  y = pdfSectionTitle(doc, 'Article 10 — Droit applicable', y);
+  y = pdfSectionTitle(doc, 'Article 13 — Cession', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat, conclu intuitu personae, ne peut faire l'objet",
+    "d'une cession, totale ou partielle, sans l'accord écrit préalable des",
+    "deux parties.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 20);
+  y = pdfSectionTitle(doc, 'Article 14 — Droit applicable', y);
   y = pdfParagraph(doc, [
     "Le présent contrat est soumis au droit français. Tout litige relatif à",
     "son interprétation ou son exécution relève, à défaut de résolution",
@@ -939,6 +1032,116 @@ document.getElementById('sign-submit').addEventListener('click', async () => {
   }
 });
 
+/* --- Récapitulatif hebdomadaire --- */
+function getWeekBounds(d = new Date()) {
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { monday, sunday };
+}
+
+let recapMissions = [];
+
+async function loadRecap() {
+  const content = document.getElementById('recap-content');
+  content.innerHTML = '<div class="loading-row"><span class="spinner"></span>Chargement...</div>';
+
+  const { monday, sunday } = getWeekBounds();
+  const { data } = await supabaseClient
+    .from('missions').select('*')
+    .eq('prestataire_id', currentUser.id)
+    .eq('statut', 'terminee')
+    .gte('termine_at', monday.toISOString())
+    .lte('termine_at', sunday.toISOString())
+    .order('termine_at', { ascending: true });
+
+  recapMissions = data || [];
+  const total = recapMissions.reduce((s, m) => s + Number(m.prix_ht || 0), 0);
+  const totalPaye = recapMissions.filter(m => m.paye).reduce((s, m) => s + Number(m.prix_ht || 0), 0);
+  const rangeStr = `${monday.toLocaleDateString('fr-FR')} — ${sunday.toLocaleDateString('fr-FR')}`;
+
+  const lignes = recapMissions.length
+    ? recapMissions.map(m => `
+        <div style="display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border-soft); font-size:13px;">
+          <span>${m.titre}${m.paye ? ' ✅' : ' 🕓'}</span>
+          <span class="mono">${Number(m.prix_ht).toFixed(2)} €</span>
+        </div>`).join('')
+    : '<div class="empty">Aucune mission clôturée cette semaine.</div>';
+
+  content.innerHTML = `
+    <div class="meta" style="margin-bottom:10px;">Semaine du ${rangeStr}</div>
+    ${lignes}
+    <div style="display:flex; justify-content:space-between; padding-top:10px; font-weight:700;">
+      <span>Total</span><span class="mono">${total.toFixed(2)} € HT</span>
+    </div>
+    <div class="meta" style="margin-top:4px;">dont ${totalPaye.toFixed(2)} € déjà réglés</div>`;
+}
+
+document.getElementById('recap-btn').addEventListener('click', () => {
+  document.getElementById('recap-overlay').classList.remove('hidden');
+  loadRecap();
+});
+document.getElementById('recap-close').addEventListener('click', () => {
+  document.getElementById('recap-overlay').classList.add('hidden');
+});
+
+document.getElementById('recap-pdf-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('recap-pdf-btn');
+  btn.disabled = true;
+  btn.textContent = 'Génération...';
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const { monday, sunday } = getWeekBounds();
+    const logo = await loadLocalLogoDataUrl();
+    let y = pdfHeader(doc, logo, 'Relevé hebdomadaire',
+      `${currentProfile.nom} — semaine du ${monday.toLocaleDateString('fr-FR')} au ${sunday.toLocaleDateString('fr-FR')}`);
+
+    y = pdfSectionTitle(doc, 'Missions clôturées cette semaine', y);
+    if (!recapMissions.length) {
+      y = pdfParagraph(doc, ['Aucune mission clôturée sur cette période.'], y);
+    } else {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5);
+      recapMissions.forEach(m => {
+        y = pdfEnsureSpace(doc, y, 10);
+        doc.text(m.titre, PDF_MARGIN, y, { maxWidth: 110 });
+        doc.text(`${Number(m.prix_ht).toFixed(2)} € ${m.paye ? '(réglé)' : '(à régler)'}`, PDF_WIDTH - PDF_MARGIN, y, { align: 'right' });
+        y += 7.5;
+      });
+    }
+    const total = recapMissions.reduce((s, m) => s + Number(m.prix_ht || 0), 0);
+    y += 5;
+    doc.setDrawColor(225, 225, 225);
+    doc.line(PDF_MARGIN, y - 3, PDF_WIDTH - PDF_MARGIN, y - 3);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5);
+    doc.text('Total', PDF_MARGIN, y);
+    doc.text(`${total.toFixed(2)} € HT`, PDF_WIDTH - PDF_MARGIN, y, { align: 'right' });
+
+    y += 16;
+    y = pdfEnsureSpace(doc, y, 20);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    y = pdfParagraph(doc, [
+      "Ce relevé est établi par SBR CONVOYAGE au nom et pour le compte du",
+      "Prestataire, conformément au mandat de facturation prévu à l'article",
+      "5 du contrat de prestation de services.",
+    ], y);
+
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) { doc.setPage(i); pdfFooter(doc, dateStr); }
+
+    doc.save(`releve-${monday.toISOString().slice(0, 10)}.pdf`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Télécharger mon relevé (PDF)';
+  }
+});
+
 /* --- Mes documents --- */
 const DOC_TYPES = [
   { key: 'kbis', label: 'Extrait Kbis (ou justificatif équivalent)' },
@@ -946,16 +1149,29 @@ const DOC_TYPES = [
   { key: 'cni', label: "Carte nationale d'identité" },
   { key: 'permis', label: 'Permis de conduire' },
 ];
+const VERDICT_LABEL = { conforme: '✅ Vérifié par IA', a_verifier: '🟡 À vérifier', suspect: '⚠️ Signalé — à vérifier' };
+let docVerifications = {};
+
+async function loadDocVerifications() {
+  const { data } = await supabaseClient.from('document_verifications').select('*').eq('prestataire_id', currentUser.id);
+  docVerifications = {};
+  (data || []).forEach(v => { docVerifications[v.doc_type] = v; });
+}
 
 function renderDocRows() {
   const wrap = document.getElementById('doc-rows');
   wrap.innerHTML = DOC_TYPES.map(d => {
     const path = currentProfile['doc_' + d.key + '_path'];
+    const verif = docVerifications[d.key];
+    const verifLine = path
+      ? (verif ? `<div class="meta">${VERDICT_LABEL[verif.statut] || ''}${verif.commentaire ? ' — ' + verif.commentaire : ''}</div>` : `<div class="meta">Vérification IA en cours...</div>`)
+      : '';
     return `
       <div class="field" style="border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px;">
         <label style="margin-bottom:4px;">${d.label}</label>
         <div class="meta" style="margin-bottom:6px;">${path ? 'Déposé ✓' : 'Pas encore déposé'}${path ? ` — <a href="#" data-view-doc="${d.key}" style="color:var(--blue-soft);">Voir</a>` : ''}</div>
-        <input type="file" data-doc-file="${d.key}" accept="image/*,application/pdf">
+        ${verifLine}
+        <input type="file" data-doc-file="${d.key}" accept="image/*,application/pdf" style="margin-top:6px;">
       </div>`;
   }).join('');
 
@@ -970,9 +1186,10 @@ function renderDocRows() {
   });
 }
 
-function openDocuments() {
+async function openDocuments() {
   document.getElementById('doc-nom-societe').value = currentProfile.nom_societe || '';
   document.getElementById('doc-site-web').value = currentProfile.site_web || '';
+  await loadDocVerifications();
   renderDocRows();
   document.getElementById('documents-overlay').classList.remove('hidden');
 }
@@ -1015,6 +1232,13 @@ document.getElementById('documents-form').addEventListener('submit', async (e) =
     currentProfile.nom_societe = document.getElementById('doc-nom-societe').value || null;
     currentProfile.site_web = document.getElementById('doc-site-web').value || null;
     Object.keys(paths).forEach(k => { if (paths[k]) currentProfile['doc_' + k + '_path'] = paths[k]; });
+
+    Object.entries(paths).forEach(([doc_type, path]) => {
+      if (!path) return;
+      supabaseClient.functions.invoke('verify-document', {
+        body: { prestataire_id: currentUser.id, doc_type, path }
+      }).catch(() => {});
+    });
 
     document.getElementById('documents-overlay').classList.add('hidden');
     alert('Documents enregistrés.');

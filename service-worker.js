@@ -6,10 +6,12 @@
 const CACHE_NAME = 'sbr-auto-v1';
 const APP_SHELL = [
   './index.html',
+  './connexion.html',
   './admin.html',
   './prestataire.html',
   './inscription.html',
-  './vitrine.html',
+  './mentions-legales.html',
+  './cgv.html',
   './style.css',
   './config.js',
   './manifest.json',

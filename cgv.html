@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR CONVOYAGE — CGV</title>
+<meta name="theme-color" content="#0b0d10">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+:root{--dark:#0b0d10;--text:#15171b;--muted:#5b6169;--line:#e7e9ed;--accent:#C8901F;--bg:#f7f8fa}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);line-height:1.6}
+.top{background:var(--dark);color:#fff;padding:20px 0}
+.container{max-width:760px;margin:0 auto;padding:0 24px}
+.top .container{display:flex;align-items:center;gap:10px}
+.top img{height:30px;width:30px;border-radius:50%}
+.top a{color:#fff;text-decoration:none;font-weight:800;font-size:16px}
+main{padding:48px 0 80px}
+h1{font-size:26px;margin:0 0 8px}
+.updated{color:var(--muted);font-size:13px;margin-bottom:36px}
+h2{font-size:16px;margin:34px 0 10px;color:var(--dark)}
+p{color:#2a2d32;font-size:14.5px;margin:0 0 10px}
+.field{color:var(--muted)}
+a.back{display:inline-block;margin-top:40px;color:var(--accent);text-decoration:none;font-weight:700;font-size:14px}
+.placeholder{background:#fff8e8;border:1px solid #f0dca6;border-radius:6px;padding:2px 6px;color:#8a6d1f;font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="container">
+    <img src="icons/logo-mark.png" alt="SBR CONVOYAGE">
+    <a href="index.html">SBR CONVOYAGE</a>
+  </div>
+</div>
+
+<main class="container">
+  <h1>Conditions Générales de Vente</h1>
+  <div class="updated">Dernière mise à jour : <span id="date-jour"></span></div>
+
+  <h2>1. Objet et champ d'application</h2>
+  <p id="editeur">Chargement...</p>
+  <p>Les présentes Conditions Générales de Vente (CGV) régissent les
+  relations contractuelles entre SBR CONVOYAGE et tout client professionnel
+  ou particulier (ci-après le « Client ») pour toute prestation de
+  convoyage, récupération sur parc, livraison, nettoyage ou inspection de
+  véhicule. Toute commande implique l'acceptation sans réserve des
+  présentes CGV.</p>
+
+  <h2>2. Prestations</h2>
+  <p>SBR CONVOYAGE propose des prestations de convoyage automobile
+  (déplacement d'un véhicule d'un point A à un point B), de récupération
+  sur parc, de livraison, ainsi que des prestations annexes (nettoyage,
+  inspection) selon les besoins du Client. Les prestations sont réalisées
+  par des prestataires indépendants du réseau SBR CONVOYAGE.</p>
+
+  <h2>3. Devis et commande</h2>
+  <p>Toute demande fait l'objet d'un devis établi sur la base des
+  informations communiquées par le Client (lieux, dates, type de
+  véhicule). La commande est considérée comme ferme à réception de
+  l'accord du Client sur le devis, par écrit (email) ou tout autre moyen
+  convenu entre les parties.</p>
+
+  <h2>4. Tarifs et paiement</h2>
+  <p>Les tarifs sont ceux indiqués sur le devis accepté par le Client, en
+  euros. Sauf accord contraire, le règlement s'effectue à réception de
+  facture, par virement bancaire.</p>
+  <p>Conformément à l'article L441-10 du Code de commerce, tout retard de
+  paiement entraîne de plein droit, sans qu'un rappel soit nécessaire,
+  l'application de pénalités de retard calculées sur la base de trois fois
+  le taux d'intérêt légal en vigueur, ainsi qu'une indemnité forfaitaire
+  de 40€ pour frais de recouvrement.</p>
+
+  <h2>5. Exécution de la prestation</h2>
+  <p>Un état des lieux du véhicule (kilométrage, niveau de carburant, état
+  extérieur et intérieur, photos) est réalisé par le prestataire avant et
+  après chaque prestation. Ce document fait foi entre les parties en cas
+  de contestation sur l'état du véhicule.</p>
+  <p>Le Client s'engage à fournir un véhicule en état de rouler, avec les
+  documents nécessaires (carte grise, assurance en cours de validité),
+  sauf mention contraire convenue au moment de la commande.</p>
+
+  <h2>6. Responsabilité et assurance</h2>
+  <p>Les prestataires du réseau SBR CONVOYAGE disposent d'une assurance
+  responsabilité civile professionnelle. SBR CONVOYAGE ne saurait être
+  tenu responsable des dommages résultant d'un cas de force majeure, d'une
+  information erronée fournie par le Client, ou d'un défaut du véhicule
+  non signalé au moment de la prise en charge.</p>
+  <p>Toute réclamation relative à l'état du véhicule doit être formulée
+  par écrit dans un délai de 48 heures suivant la livraison, accompagnée
+  de l'état des lieux correspondant.</p>
+
+  <h2>7. Annulation</h2>
+  <p>Toute annulation par le Client doit être communiquée dans les
+  meilleurs délais. Une annulation intervenant moins de 24 heures avant
+  l'heure prévue de la prestation pourra donner lieu à la facturation de
+  tout ou partie du montant convenu, selon les circonstances.</p>
+
+  <h2>8. Données personnelles</h2>
+  <p>Les informations transmises dans le cadre d'une commande sont traitées
+  conformément à notre <a href="mentions-legales.html">politique de
+  confidentialité</a>.</p>
+
+  <h2>9. Droit applicable et litiges</h2>
+  <p>Les présentes CGV sont soumises au droit français. En cas de litige,
+  et à défaut de résolution amiable, les tribunaux compétents seront ceux
+  du ressort du siège social de SBR CONVOYAGE.</p>
+
+  <a class="back" href="index.html">← Retour au site</a>
+</main>
+
+<script>
+document.getElementById('date-jour').textContent = new Date().toLocaleDateString('fr-FR');
+
+async function loadEntreprise() {
+  try {
+    const { data } = await supabaseClient.from('entreprise_config').select('*').eq('id', 1).maybeSingle();
+    const nom = (data && data.nom) || 'SBR CONVOYAGE';
+    const forme = data && data.forme_juridique;
+    const siret = data && data.siret;
+    const adresse = data && data.adresse;
+
+    const parts = [`<strong>${nom}</strong>`];
+    if (forme) parts.push(forme);
+    if (siret) parts.push('SIRET ' + siret);
+    let html = parts.join(', ') + '.';
+    if (adresse) {
+      html += `<br>Siège social : ${adresse}.`;
+    } else {
+      html += `<br><span class="placeholder">Adresse du siège à renseigner dans "Paramètres entreprise"</span>`;
+    }
+    if (!forme || !siret) {
+      html += `<br><span class="placeholder">Forme juridique / SIRET à compléter dans "Paramètres entreprise" (admin.html)</span>`;
+    }
+    document.getElementById('editeur').innerHTML = html;
+  } catch (e) {
+    document.getElementById('editeur').innerHTML = '<span class="placeholder">Impossible de charger les informations de la société.</span>';
+  }
+}
+loadEntreprise();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

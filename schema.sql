@@ -25,6 +25,12 @@ create table public.profiles (
   missions_annulees_total integer not null default 0,
   siret text,
   statut_juridique text,
+  nom_societe text,
+  site_web text,
+  doc_kbis_path text,
+  doc_assurance_path text,
+  doc_cni_path text,
+  doc_permis_path text,
   adresse text,
   created_at timestamptz not null default now()
 );
@@ -43,6 +49,7 @@ create table public.missions (
   relance_envoyee_le timestamptz,
   paye boolean not null default false,
   paye_le timestamptz,
+  nom_client text,
   prix_ht numeric(10,2) not null check (prix_ht >= 0),
   taux_tva numeric(5,2) not null default 20,
   statut text not null default 'disponible'
@@ -318,6 +325,53 @@ $$;
 
 grant execute on function public.signer_contrat_cadre(text, text) to authenticated;
 
+-- 16) Documents prestataire (Kbis, assurance pro, CNI, permis) —
+-- bucket PRIVÉ, jamais public (pièces d'identité)
+insert into storage.buckets (id, name, public)
+values ('documents', 'documents', false)
+on conflict (id) do nothing;
+
+create policy "upload documents proprietaire"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'documents'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "lecture documents proprietaire ou admin"
+  on storage.objects for select
+  using (
+    bucket_id = 'documents'
+    and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
+  );
+
+create or replace function public.update_mes_documents_prestataire(
+  p_nom_societe text,
+  p_site_web text,
+  p_doc_kbis_path text,
+  p_doc_assurance_path text,
+  p_doc_cni_path text,
+  p_doc_permis_path text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.profiles
+  set nom_societe = p_nom_societe,
+      site_web = p_site_web,
+      doc_kbis_path = coalesce(p_doc_kbis_path, doc_kbis_path),
+      doc_assurance_path = coalesce(p_doc_assurance_path, doc_assurance_path),
+      doc_cni_path = coalesce(p_doc_cni_path, doc_cni_path),
+      doc_permis_path = coalesce(p_doc_permis_path, doc_permis_path)
+  where id = auth.uid() and role = 'prestataire';
+end;
+$$;
+
+grant execute on function public.update_mes_documents_prestataire(text, text, text, text, text, text) to authenticated;
+
 -- 15) Trigger qui tient à jour les compteurs de fiabilité des prestataires
 -- (acceptées / désistées / annulées) à chaque changement de statut
 create or replace function public.track_mission_stats()
@@ -346,6 +400,28 @@ $$;
 create trigger missions_stats_trigger
   after update on public.missions
   for each row execute function public.track_mission_stats();
+
+-- 17) Résultats de vérification IA des documents prestataire
+create table public.document_verifications (
+  id uuid primary key default gen_random_uuid(),
+  prestataire_id uuid not null references public.profiles(id) on delete cascade,
+  doc_type text not null check (doc_type in ('kbis', 'assurance', 'cni', 'permis')),
+  statut text not null default 'a_verifier' check (statut in ('conforme', 'a_verifier', 'suspect')),
+  commentaire text,
+  verifie_le timestamptz not null default now(),
+  unique (prestataire_id, doc_type)
+);
+
+alter table public.document_verifications enable row level security;
+
+create policy "lecture document_verifications"
+  on public.document_verifications for select
+  using (public.is_admin() or prestataire_id = auth.uid());
+
+create policy "service role ecrit document_verifications"
+  on public.document_verifications for all
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
 
 -- ============================================================
 -- Création des comptes prestataires :

@@ -9,6 +9,10 @@
 <meta name="theme-color" content="#16181D">
 <link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
 <link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBR CONVOYAGE">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
@@ -37,12 +41,12 @@
 
   <div class="page-head">
     <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
-    <div style="display:flex; gap:8px;">
-      <button class="btn" id="paiements-btn">Paiements</button>
-      <button class="btn" id="dashboard-btn">Tableau de bord</button>
-      <button class="btn" id="a-traiter-btn">À traiter</button>
-      <button class="btn" id="entreprise-btn">Paramètres entreprise</button>
-      <button class="btn" id="prestataires-btn">Prestataires</button>
+    <div class="page-head-actions">
+      <button class="btn" id="paiements-btn">💶 Paiements</button>
+      <button class="btn" id="dashboard-btn">📊 Tableau de bord</button>
+      <button class="btn" id="a-traiter-btn">✅ À traiter</button>
+      <button class="btn" id="entreprise-btn">🏢 Entreprise</button>
+      <button class="btn" id="prestataires-btn">👥 Prestataires</button>
       <button class="btn btn-primary" id="new-mission-btn">+ Nouvelle mission</button>
     </div>
   </div>
@@ -72,6 +76,10 @@
       <div class="field">
         <label>Titre</label>
         <input type="text" id="f-titre" required placeholder="Convoyage Lyon → Marseille">
+      </div>
+      <div class="field">
+        <label>Nom du client (facultatif, apparaît sur le contrat de mission)</label>
+        <input type="text" id="f-nom-client" placeholder="Nom du client final">
       </div>
       <div class="field">
         <label>Description</label>
@@ -207,6 +215,19 @@
     <div id="prestataires-list"></div>
   </div>
 
+  <div class="panel" style="margin-bottom:16px; padding:14px 16px;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <input type="text" id="mission-search" placeholder="Rechercher : titre, véhicule, prestataire..." style="flex:1; min-width:200px; background:var(--bg-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); padding:9px 12px; font-size:13.5px;">
+      <select id="mission-filter-type" style="background:var(--bg-soft); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); padding:9px 10px; font-size:13px;">
+        <option value="">Tous les types</option>
+        <option value="convoyage">Convoyage</option>
+        <option value="nettoyage">Nettoyage</option>
+        <option value="inspection">Inspection</option>
+        <option value="autre">Autre</option>
+      </select>
+    </div>
+  </div>
+
   <div class="board">
     <div class="column">
       <div class="column-head">
@@ -234,7 +255,7 @@
 </div>
 
 <!-- Modale état des lieux -->
-<div class="hidden" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+<div class="hidden modal-overlay" id="edl-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
   <div class="panel" style="max-width:520px;width:100%;max-height:85vh;overflow:auto;">
     <div class="panel-head">
       <strong>État des lieux</strong>
@@ -245,7 +266,7 @@
 </div>
 
 <!-- Modale facture -->
-<div class="hidden" id="facture-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+<div class="hidden modal-overlay" id="facture-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
   <div class="panel" style="max-width:420px;width:100%;">
     <div class="panel-head">
       <strong>Facture</strong>
@@ -267,7 +288,7 @@
 </div>
 
 <!-- Modale notation -->
-<div class="hidden" id="note-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+<div class="hidden modal-overlay" id="note-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
   <div class="panel" style="max-width:380px;width:100%;">
     <div class="panel-head">
       <strong>Noter le prestataire</strong>
@@ -288,7 +309,7 @@
 </div>
 
 <!-- Modale contrat cadre prestataire -->
-<div class="hidden" id="contrat-cadre-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
+<div class="hidden modal-overlay" id="contrat-cadre-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;">
   <div class="panel" style="max-width:420px;width:100%;">
     <div class="panel-head">
       <strong>Contrat cadre — autorisation à travailler avec SBR CONVOYAGE</strong>
@@ -311,6 +332,9 @@
 <script>
 let ttcMode = false;
 let missionsById = {};
+
+document.getElementById('mission-search').addEventListener('input', () => renderMissionBoard());
+document.getElementById('mission-filter-type').addEventListener('change', () => renderMissionBoard());
 
 /* --- Autocomplétion d'adresse (API Adresse — data.gouv.fr, gratuite) --- */
 function attachAddressAutocomplete(inputId) {
@@ -445,6 +469,9 @@ function missionCard(m) {
   </div>`;
 }
 
+let allMissionsData = [];
+let evalByMissionGlobal = {};
+
 async function loadMissions() {
   const { data, error } = await supabaseClient
     .from('missions')
@@ -454,12 +481,28 @@ async function loadMissions() {
   if (error) { console.error(error); return; }
 
   const { data: evals } = await supabaseClient.from('evaluations').select('*');
-  const evalByMission = {};
-  (evals || []).forEach(ev => { evalByMission[ev.mission_id] = ev; });
-  data.forEach(m => { m.evaluation = evalByMission[m.id] || null; });
+  evalByMissionGlobal = {};
+  (evals || []).forEach(ev => { evalByMissionGlobal[ev.mission_id] = ev; });
+  data.forEach(m => { m.evaluation = evalByMissionGlobal[m.id] || null; });
 
   missionsById = {};
   data.forEach(m => { missionsById[m.id] = m; });
+
+  allMissionsData = data;
+  renderMissionBoard();
+}
+
+function renderMissionBoard() {
+  const search = (document.getElementById('mission-search').value || '').trim().toLowerCase();
+  const typeFilter = document.getElementById('mission-filter-type').value;
+
+  const data = allMissionsData.filter(m => {
+    if (typeFilter && m.type !== typeFilter) return false;
+    if (!search) return true;
+    const haystack = [m.titre, m.vehicule, m.description, m.prestataire ? m.prestataire.nom : '', m.lieu_depart, m.lieu_arrivee]
+      .filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(search);
+  });
 
   const disponibles = data.filter(m => m.statut === 'disponible');
   const encours = data.filter(m => m.statut === 'acceptee' || m.statut === 'en_cours');
@@ -486,7 +529,7 @@ async function loadMissions() {
     btn.addEventListener('click', () => openFacture(btn.dataset.facture, btn.dataset.factureNum, btn.dataset.factureUrl));
   });
   document.querySelectorAll('[data-note]').forEach(btn => {
-    btn.addEventListener('click', () => openNote(btn.dataset.note, btn.dataset.notePrestataire, evalByMission[btn.dataset.note]));
+    btn.addEventListener('click', () => openNote(btn.dataset.note, btn.dataset.notePrestataire, evalByMissionGlobal[btn.dataset.note]));
   });
   document.querySelectorAll('[data-duplicate]').forEach(btn => {
     btn.addEventListener('click', () => duplicateMission(btn.dataset.duplicate));
@@ -644,6 +687,7 @@ function duplicateMission(id) {
   document.getElementById('f-type').value = m.type;
   document.getElementById('f-vehicule').value = m.vehicule || '';
   document.getElementById('f-titre').value = m.titre || '';
+  document.getElementById('f-nom-client').value = m.nom_client || '';
   document.getElementById('f-description').value = m.description || '';
   document.getElementById('f-depart').value = m.lieu_depart || '';
   document.getElementById('f-arrivee').value = m.lieu_arrivee || '';
@@ -703,6 +747,7 @@ document.getElementById('mission-form').addEventListener('submit', async (e) => 
   const payload = {
     type: type,
     titre: document.getElementById('f-titre').value,
+    nom_client: document.getElementById('f-nom-client').value || null,
     description: document.getElementById('f-description').value || null,
     vehicule: document.getElementById('f-vehicule').value || null,
     lieu_depart: document.getElementById('f-depart').value || null,
@@ -727,7 +772,7 @@ document.getElementById('mission-form').addEventListener('submit', async (e) => 
 /* --- Paiements --- */
 async function loadPaiements() {
   const content = document.getElementById('paiements-content');
-  content.innerHTML = '<div class="empty">Chargement...</div>';
+  content.innerHTML = '<div class="loading-row"><span class="spinner"></span>Chargement...</div>';
 
   const { data: missions, error } = await supabaseClient
     .from('missions')
@@ -813,7 +858,7 @@ document.getElementById('close-paiements-btn').addEventListener('click', () => {
 /* --- Tableau de bord --- */
 async function loadDashboard() {
   const content = document.getElementById('dashboard-content');
-  content.innerHTML = '<div class="empty">Chargement...</div>';
+  content.innerHTML = '<div class="loading-row"><span class="spinner"></span>Chargement...</div>';
 
   const now = new Date();
   const debutMois = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -897,7 +942,7 @@ function aTraiterSection(title, items, emptyLabel) {
 
 async function loadATraiter() {
   const content = document.getElementById('a-traiter-content');
-  content.innerHTML = '<div class="empty">Chargement...</div>';
+  content.innerHTML = '<div class="loading-row"><span class="spinner"></span>Chargement...</div>';
 
   const { data: missions } = await supabaseClient
     .from('missions')
@@ -1194,9 +1239,20 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 34);
-  y = pdfSectionTitle(doc, 'Article 4 — Obligations des parties', y);
+  y = pdfEnsureSpace(doc, y, 46);
+  y = pdfSectionTitle(doc, 'Article 4 — Qualités et obligations du Prestataire', y);
   y = pdfParagraph(doc, [
+    "Le Prestataire déclare être titulaire d'un permis de conduire français",
+    "(ou équivalence délivrée par une préfecture française) valide depuis",
+    "plus de 3 ans, correspondant aux véhicules qu'il est amené à convoyer,",
+    "et non suspendu à la date de signature ni aux dates d'exécution d'une",
+    "mission.",
+    '',
+    "Le Prestataire certifie l'exactitude et l'authenticité des documents",
+    "communiqués à la Société (pièce d'identité, permis, Kbis, attestation",
+    "d'assurance). Tout faux document est passible, outre la résiliation du",
+    "présent contrat, de poursuites judiciaires.",
+    '',
     "Le Prestataire s'engage à exécuter les missions acceptées avec soin et",
     "professionnalisme, à renseigner un état des lieux du véhicule avant et",
     "après chaque intervention, et à respecter les délais convenus.",
@@ -1206,12 +1262,18 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 26);
-  y = pdfSectionTitle(doc, 'Article 5 — Rémunération et paiement', y);
+  y = pdfEnsureSpace(doc, y, 42);
+  y = pdfSectionTitle(doc, 'Article 5 — Rémunération, paiement et mandat de facturation', y);
   y = pdfParagraph(doc, [
     'Le règlement des missions réalisées intervient chaque lundi, pour',
     "l'ensemble des missions clôturées et facturées au cours de la semaine",
     "précédente, par virement sur le compte communiqué par le Prestataire.",
+    '',
+    "Sauf opposition écrite du Prestataire, celui-ci donne mandat à la",
+    "Société pour établir, en son nom et pour son compte, les factures",
+    "relatives aux missions réalisées, conformément à la réglementation",
+    "applicable au mandat de facturation. Le Prestataire conserve l'entière",
+    "responsabilité de ses obligations fiscales et sociales.",
   ], y);
 
   y += 4;
@@ -1245,18 +1307,58 @@ async function buildContratCadrePdf(prestataire, entreprise, prestataireSigDataU
   ], y);
 
   y += 4;
-  y = pdfEnsureSpace(doc, y, 22);
-  y = pdfSectionTitle(doc, 'Article 9 — Durée et résiliation', y);
+  y = pdfEnsureSpace(doc, y, 40);
+  y = pdfSectionTitle(doc, 'Article 9 — Durée et reconduction', y);
   y = pdfParagraph(doc, [
-    "Le présent contrat est conclu pour une durée indéterminée à compter de",
-    "sa signature. Chaque partie peut y mettre fin à tout moment, moyennant",
-    "un préavis de 15 jours notifié par écrit, sans préjudice des missions",
-    "en cours qui devront être menées à leur terme.",
+    "Le présent contrat est conclu pour une durée de six (6) mois à compter",
+    "de sa signature, renouvelable par tacite reconduction par périodes de",
+    "trois (3) mois, sauf dénonciation par l'une ou l'autre des parties,",
+    "sans justification nécessaire, moyennant un préavis de quinze (15)",
+    "jours notifié par écrit, sans préjudice des missions en cours qui",
+    "devront être menées à leur terme.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 32);
+  y = pdfSectionTitle(doc, 'Article 10 — Résiliation anticipée pour manquement grave', y);
+  y = pdfParagraph(doc, [
+    "Le contrat pourra être résilié par la Société sans préavis en cas de",
+    "manquement grave du Prestataire, notamment : communication de faux",
+    "documents ou de documents ne correspondant pas à son identité,",
+    "suspicion de vol ou de dégradation volontaire d'un véhicule confié, ou",
+    "comportement dangereux ou inadapté envers des tiers.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 22);
+  y = pdfSectionTitle(doc, 'Article 11 — Infractions et amendes', y);
+  y = pdfParagraph(doc, [
+    "Les infractions au code de la route, amendes et contraventions",
+    "commises par le Prestataire lors de l'exécution d'une mission sont à",
+    "sa charge exclusive.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 26);
+  y = pdfSectionTitle(doc, 'Article 12 — Force majeure', y);
+  y = pdfParagraph(doc, [
+    "Aucune des parties ne pourra être tenue responsable d'un retard ou",
+    "d'une inexécution résultant d'un cas de force majeure au sens de",
+    "l'article 1218 du Code civil.",
   ], y);
 
   y += 4;
   y = pdfEnsureSpace(doc, y, 20);
-  y = pdfSectionTitle(doc, 'Article 10 — Droit applicable', y);
+  y = pdfSectionTitle(doc, 'Article 13 — Cession', y);
+  y = pdfParagraph(doc, [
+    "Le présent contrat, conclu intuitu personae, ne peut faire l'objet",
+    "d'une cession, totale ou partielle, sans l'accord écrit préalable des",
+    "deux parties.",
+  ], y);
+
+  y += 4;
+  y = pdfEnsureSpace(doc, y, 20);
+  y = pdfSectionTitle(doc, 'Article 14 — Droit applicable', y);
   y = pdfParagraph(doc, [
     "Le présent contrat est soumis au droit français. Tout litige relatif à",
     "son interprétation ou son exécution relève, à défaut de résolution",
@@ -1330,6 +1432,22 @@ async function genererEtEnvoyerContrat(prestataireId, prestataireNom) {
 
 /* --- Prestataires --- */
 const SPECIALITES = ['convoyage', 'nettoyage', 'inspection', 'autre'];
+const DOC_TYPES_ADMIN = [
+  { key: 'kbis', label: 'Kbis' },
+  { key: 'assurance', label: 'Assurance pro' },
+  { key: 'cni', label: 'CNI' },
+  { key: 'permis', label: 'Permis' },
+];
+const VERDICT_LABEL_ADMIN = { conforme: '✅ IA : conforme', a_verifier: '🟡 IA : à vérifier', suspect: '⚠️ IA : signalé' };
+
+async function voirDocumentPrestataire(prestataireId, docKey) {
+  const p = await supabaseClient.from('profiles').select('doc_' + docKey + '_path').eq('id', prestataireId).single();
+  const path = p.data && p.data['doc_' + docKey + '_path'];
+  if (!path) return;
+  const { data, error } = await supabaseClient.storage.from('documents').createSignedUrl(path, 3600);
+  if (error) { alert("Impossible d'ouvrir ce document : " + error.message); return; }
+  window.open(data.signedUrl, '_blank');
+}
 
 function prestataireRow(p) {
   const checks = SPECIALITES.map(s => `
@@ -1385,6 +1503,25 @@ function prestataireRow(p) {
       <label>Adresse</label>
       <input type="text" data-adresse value="${p.adresse || ''}" placeholder="Adresse du prestataire">
     </div>
+    <div class="field-row">
+      <div class="field" style="margin-bottom:8px;">
+        <label>Nom de société</label>
+        <input type="text" data-nom-societe value="${p.nom_societe || ''}" placeholder="Optionnel">
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>Site web</label>
+        <input type="text" data-site-web value="${p.site_web || ''}" placeholder="Optionnel">
+      </div>
+    </div>
+    <div class="meta" style="margin-bottom:10px;">
+      ${DOC_TYPES_ADMIN.map(d => {
+        const path = p['doc_' + d.key + '_path'];
+        if (!path) return `${d.label} : <span style="color:var(--amber);">manquant</span>`;
+        const v = (p._verifs || {})[d.key];
+        const verdict = v ? (VERDICT_LABEL_ADMIN[v.statut] || v.statut) : 'IA en cours...';
+        return `${d.label} : <a href="#" data-voir-doc="${p.id}:${d.key}" style="color:var(--blue-soft);">voir</a> — ${verdict}`;
+      }).join(' · ')}
+    </div>
     <div style="display:flex; gap:14px; flex-wrap:wrap; margin:10px 0;">${checks}</div>
     <div class="actions">
       <button class="btn btn-primary btn-sm" data-save-prestataire="${p.id}">Enregistrer</button>
@@ -1402,12 +1539,27 @@ async function loadPrestataires() {
 
   if (error) { console.error(error); return; }
 
+  const { data: verifs } = await supabaseClient.from('document_verifications').select('*');
+  const verifByPrestataire = {};
+  (verifs || []).forEach(v => {
+    verifByPrestataire[v.prestataire_id] = verifByPrestataire[v.prestataire_id] || {};
+    verifByPrestataire[v.prestataire_id][v.doc_type] = v;
+  });
+
   const pending = (data || []).filter(p => p.en_attente_validation);
   const validated = (data || []).filter(p => !p.en_attente_validation);
 
   document.getElementById('prestataires-pending').innerHTML = pending.length
     ? `<div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:8px;">Demandes en attente (${pending.length})</div>`
-      + pending.map(p => `
+      + pending.map(p => {
+        const docsLine = DOC_TYPES_ADMIN.map(d => {
+          const path = p['doc_' + d.key + '_path'];
+          const v = (verifByPrestataire[p.id] || {})[d.key];
+          if (!path) return `${d.label} : <span style="color:var(--amber);">manquant</span>`;
+          const verdict = v ? (VERDICT_LABEL_ADMIN[v.statut] || v.statut) : 'IA en cours...';
+          return `${d.label} : <a href="#" data-voir-doc="${p.id}:${d.key}" style="color:var(--blue-soft);">voir</a> — ${verdict}`;
+        }).join(' · ');
+        return `
         <div class="card">
           <p class="titre">${p.nom}</p>
           <div class="meta">
@@ -1415,11 +1567,13 @@ async function loadPrestataires() {
             ${p.email ? p.email + '<br>' : ''}
             Spécialités souhaitées : ${(p.specialites || []).map(s => TYPE_LABEL[s]).join(', ') || 'aucune indiquée'}
           </div>
+          <div class="meta" style="margin-top:6px;">${docsLine}</div>
           <div class="actions">
             <button class="btn btn-primary btn-sm" data-approve="${p.id}">Approuver</button>
             <button class="btn btn-ghost btn-sm" data-reject="${p.id}">Refuser</button>
           </div>
-        </div>`).join('') + '<hr class="divider">'
+        </div>`;
+      }).join('') + '<hr class="divider">'
     : '';
 
   const { data: evals } = await supabaseClient.from('evaluations').select('prestataire_id, note');
@@ -1427,6 +1581,7 @@ async function loadPrestataires() {
     const notes = (evals || []).filter(ev => ev.prestataire_id === p.id).map(ev => ev.note);
     p._noteCount = notes.length;
     p._avgNote = notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : null;
+    p._verifs = verifByPrestataire[p.id] || {};
   });
 
   document.getElementById('prestataires-list').innerHTML = validated.length
@@ -1453,6 +1608,13 @@ async function loadPrestataires() {
       btn.disabled = false;
     });
   });
+  document.querySelectorAll('[data-voir-doc]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const [prestataireId, docKey] = a.dataset.voirDoc.split(':');
+      voirDocumentPrestataire(prestataireId, docKey);
+    });
+  });
 }
 
 async function savePrestataire(id) {
@@ -1462,9 +1624,11 @@ async function savePrestataire(id) {
   const statut_juridique = row.querySelector('[data-statut-juridique]').value || null;
   const siret = row.querySelector('[data-siret]').value || null;
   const adresse = row.querySelector('[data-adresse]').value || null;
+  const nom_societe = row.querySelector('[data-nom-societe]').value || null;
+  const site_web = row.querySelector('[data-site-web]').value || null;
 
   const { error } = await supabaseClient
-    .from('profiles').update({ specialites, actif, statut_juridique, siret, adresse }).eq('id', id);
+    .from('profiles').update({ specialites, actif, statut_juridique, siret, adresse, nom_societe, site_web }).eq('id', id);
 
   if (error) { alert("Erreur : " + error.message); return; }
   loadPrestataires();
@@ -1543,18 +1707,18 @@ document.getElementById('contrat-cadre-form').addEventListener('submit', async (
 
 document.getElementById('logout-btn').addEventListener('click', async () => {
   await supabaseClient.auth.signOut();
-  window.location.href = 'index.html';
+  window.location.href = 'connexion.html';
 });
 
 async function init() {
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session) { window.location.href = 'index.html'; return; }
+  if (!session) { window.location.href = 'connexion.html'; return; }
 
   const { data: profile, error } = await supabaseClient
     .from('profiles').select('role, nom').eq('id', session.user.id).single();
 
   if (error || !profile || profile.role !== 'admin') {
-    window.location.href = 'index.html';
+    window.location.href = 'connexion.html';
     return;
   }
 
