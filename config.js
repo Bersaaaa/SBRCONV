@@ -3,7 +3,7 @@
 // (Dashboard Supabase > Project Settings > API)
 // ============================================================
 const SUPABASE_URL = "https://mqqcysuvxuagfxpbbthb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xcWN5c3V2eHVhZ2Z4cGJidGhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDYyMjYsImV4cCI6MjEwNDg4MjIyNn0.7oPjXvk-8ibcUUTfseAeYs25EFhOWpPx-ula_1a4mhU";
+const SUPABASE_ANON_KEY = "sb_publishable_4eekdU225iv-T1p25GW3DA_M5OeDGla";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
