@@ -43,6 +43,8 @@
     <div class="hint">Vue d'ensemble des missions. Le statut (en cours / clôturée) est mis à jour par le prestataire, via son état des lieux.</div>
     <div class="page-head-actions">
       <button class="btn" id="paiements-btn">💶 Paiements</button>
+      <button class="btn" id="calendrier-btn">📅 Calendrier</button>
+      <button class="btn" id="export-csv-btn">⬇️ Export CSV</button>
       <button class="btn" id="dashboard-btn">📊 Tableau de bord</button>
       <button class="btn" id="a-traiter-btn">✅ À traiter</button>
       <button class="btn" id="entreprise-btn">🏢 Entreprise</button>
@@ -143,6 +145,19 @@
   </div>
 
   <!-- Panneau tableau de bord -->
+  <!-- Panneau calendrier -->
+  <div class="panel hidden" id="calendrier-panel" style="margin-bottom:20px;">
+    <div class="panel-head">
+      <strong id="calendrier-titre">Calendrier</strong>
+      <button class="btn btn-ghost" id="close-calendrier-btn">Fermer</button>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <button class="btn btn-ghost btn-sm" id="calendrier-prev">← Précédent</button>
+      <button class="btn btn-ghost btn-sm" id="calendrier-next">Suivant →</button>
+    </div>
+    <div id="calendrier-grid"></div>
+  </div>
+
   <div class="panel hidden" id="dashboard-panel" style="margin-bottom:20px;">
     <div class="panel-head">
       <strong>Tableau de bord — ce mois-ci</strong>
@@ -463,6 +478,7 @@ function missionCard(m) {
     ${prestataireLine}
     ${factureLine}
     ${contratLine}
+    ${m.suivi_token ? `<div class="meta"><a href="#" data-copier-suivi="${m.suivi_token}" style="color:var(--blue-soft);">Copier le lien de suivi client</a></div>` : ''}
     ${noteLine}
     <div class="prix mono">${formatPrix(m.prix_ht, m.taux_tva)}<span class="devise-label">${ttcMode ? 'TTC' : (m.taux_tva > 0 ? 'HT' : 'sans TVA')}</span></div>
     ${actions}
@@ -533,6 +549,19 @@ function renderMissionBoard() {
   });
   document.querySelectorAll('[data-duplicate]').forEach(btn => {
     btn.addEventListener('click', () => duplicateMission(btn.dataset.duplicate));
+  });
+  document.querySelectorAll('[data-copier-suivi]').forEach(a => {
+    a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const url = window.location.origin + window.location.pathname.replace('admin.html', 'suivi.html') + '?m=' + a.dataset.copierSuivi;
+      try {
+        await navigator.clipboard.writeText(url);
+        a.textContent = 'Lien copié ✓';
+        setTimeout(() => { a.textContent = 'Copier le lien de suivi client'; }, 2000);
+      } catch (err) {
+        prompt('Copie ce lien :', url);
+      }
+    });
   });
 }
 
@@ -920,6 +949,111 @@ async function loadDashboard() {
     </div>`;
 }
 
+/* --- Calendrier --- */
+let calendrierMoisCourant = new Date();
+calendrierMoisCourant.setDate(1);
+
+function renderCalendrier() {
+  const year = calendrierMoisCourant.getFullYear();
+  const month = calendrierMoisCourant.getMonth();
+  document.getElementById('calendrier-titre').textContent =
+    calendrierMoisCourant.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7; // lundi = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = new Date().toDateString();
+
+  const missionsByDay = {};
+  allMissionsData.forEach(m => {
+    if (!m.date_prevue) return;
+    const d = new Date(m.date_prevue);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      const key = d.getDate();
+      missionsByDay[key] = missionsByDay[key] || [];
+      missionsByDay[key].push(m);
+    }
+  });
+
+  const dowLabels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  let html = dowLabels.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  for (let i = 0; i < startOffset; i++) html += `<div class="cal-day out-of-month"></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cellDate = new Date(year, month, day);
+    const isToday = cellDate.toDateString() === todayStr;
+    const missions = missionsByDay[day] || [];
+    const chips = missions.slice(0, 3).map(m =>
+      `<span class="cal-chip cal-chip-${m.type}" title="${m.titre}">${m.titre}</span>`
+    ).join('');
+    const more = missions.length > 3 ? `<span class="meta" style="font-size:10px;">+${missions.length - 3}</span>` : '';
+    html += `<div class="cal-day ${isToday ? 'today' : ''}"><div class="num">${day}</div>${chips}${more}</div>`;
+  }
+
+  document.getElementById('calendrier-grid').innerHTML = html;
+}
+
+document.getElementById('calendrier-btn').addEventListener('click', () => {
+  document.getElementById('calendrier-panel').classList.remove('hidden');
+  renderCalendrier();
+});
+document.getElementById('close-calendrier-btn').addEventListener('click', () => {
+  document.getElementById('calendrier-panel').classList.add('hidden');
+});
+document.getElementById('calendrier-prev').addEventListener('click', () => {
+  calendrierMoisCourant.setMonth(calendrierMoisCourant.getMonth() - 1);
+  renderCalendrier();
+});
+document.getElementById('calendrier-next').addEventListener('click', () => {
+  calendrierMoisCourant.setMonth(calendrierMoisCourant.getMonth() + 1);
+  renderCalendrier();
+});
+
+/* --- Export CSV --- */
+function csvEscape(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).replace(/"/g, '""');
+  return /[",;\n]/.test(s) ? `"${s}"` : s;
+}
+
+document.getElementById('export-csv-btn').addEventListener('click', async () => {
+  const { data, error } = await supabaseClient
+    .from('missions')
+    .select('*, prestataire:profiles!missions_prestataire_id_fkey(nom)')
+    .order('created_at', { ascending: false });
+  if (error) { alert("Erreur : " + error.message); return; }
+
+  const headers = ['Date création', 'Type', 'Titre', 'Client', 'Prestataire', 'Statut', 'Prix HT', 'Taux TVA', 'Prix TTC', 'Payé', 'Date paiement', 'N° facture', 'Date clôture'];
+  const rows = (data || []).map(m => {
+    const prixTtc = Number(m.prix_ht || 0) * (1 + (m.taux_tva || 0) / 100);
+    return [
+      m.created_at ? new Date(m.created_at).toLocaleDateString('fr-FR') : '',
+      TYPE_LABEL[m.type] || m.type,
+      m.titre,
+      m.nom_client || '',
+      m.prestataire ? m.prestataire.nom : '',
+      STATUT_LABEL[m.statut] || m.statut,
+      Number(m.prix_ht || 0).toFixed(2),
+      m.taux_tva || 0,
+      prixTtc.toFixed(2),
+      m.paye ? 'Oui' : 'Non',
+      m.paye_le ? new Date(m.paye_le).toLocaleDateString('fr-FR') : '',
+      m.facture_numero || '',
+      m.termine_at ? new Date(m.termine_at).toLocaleDateString('fr-FR') : '',
+    ];
+  });
+
+  const csv = [headers, ...rows].map(r => r.map(csvEscape).join(';')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `missions-sbr-convoyage-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
 document.getElementById('dashboard-btn').addEventListener('click', () => {
   document.getElementById('dashboard-panel').classList.remove('hidden');
   loadDashboard();
@@ -992,7 +1126,21 @@ async function loadATraiter() {
         <div class="meta">Publiée le ${formatDate(m.created_at)}, toujours sans prestataire</div>
       </div>`);
 
+  const assurancesExpirantes = (prestataires || [])
+    .filter(p => p.assurance_validite_le)
+    .map(p => ({ ...p, joursRestants: Math.floor((new Date(p.assurance_validite_le).getTime() - now) / (24 * 60 * 60 * 1000)) }))
+    .filter(p => p.joursRestants <= 30)
+    .sort((a, b) => a.joursRestants - b.joursRestants)
+    .map(p => `
+      <div class="card">
+        <p class="titre">${p.nom}</p>
+        <div class="meta">${p.joursRestants < 0
+          ? `Assurance expirée depuis ${Math.abs(p.joursRestants)} jour(s) (le ${formatDate(p.assurance_validite_le)})`
+          : `Expire dans ${p.joursRestants} jour(s) (le ${formatDate(p.assurance_validite_le)})`}</div>
+      </div>`);
+
   content.innerHTML =
+    aTraiterSection('Assurances pro à renouveler (< 30 jours)', assurancesExpirantes, 'Aucune échéance proche.') +
     aTraiterSection('Factures manquantes', facturesManquantes, 'Aucune facture en attente.') +
     aTraiterSection('Notations manquantes', notesManquantes, 'Tout est noté.') +
     aTraiterSection('Contrats cadre non signés', contratsNonSignes, 'Tous les prestataires actifs ont signé.') +
@@ -1426,6 +1574,10 @@ async function genererEtEnvoyerContrat(prestataireId, prestataireNom) {
     contrat_ajoute_le: new Date().toISOString()
   }).eq('id', prestataireId);
 
+  await supabaseClient.from('contrats_historique').insert({
+    prestataire_id: prestataireId, contrat_url: data.publicUrl, statut: 'en_attente_signature'
+  });
+
   if (error) { alert("Erreur : " + error.message); return; }
   loadPrestataires();
 }
@@ -1475,7 +1627,8 @@ function prestataireRow(p) {
     signe: `Contrat cadre : signé${p.contrat_signe_le ? ' le ' + formatDate(p.contrat_signe_le) : ''}`
   };
   const contratLine = `<div class="meta">${CONTRAT_STATUT_LABEL[p.contrat_statut] || CONTRAT_STATUT_LABEL.non_envoye}
-    ${p.contrat_url ? ` — <a href="${p.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">voir le PDF</a>` : ''}</div>`;
+    ${p.contrat_url ? ` — <a href="${p.contrat_url}" target="_blank" rel="noopener" style="color:var(--blue-soft);">voir le PDF</a>` : ''}
+    — <a href="#" data-voir-historique="${p.id}" style="color:var(--text-faint);">historique des versions</a></div>`;
 
   return `
   <div class="card" data-prestataire-row="${p.id}">
@@ -1599,6 +1752,18 @@ async function loadPrestataires() {
   });
   document.querySelectorAll('[data-contrat-cadre]').forEach(btn => {
     btn.addEventListener('click', () => openContratCadre(btn.dataset.contratCadre));
+  });
+  document.querySelectorAll('[data-voir-historique]').forEach(a => {
+    a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const { data } = await supabaseClient
+        .from('contrats_historique').select('*')
+        .eq('prestataire_id', a.dataset.voirHistorique)
+        .order('cree_le', { ascending: false });
+      if (!data || !data.length) { alert('Aucun historique pour ce prestataire.'); return; }
+      const lignes = data.map(v => `${formatDate(v.cree_le)} — ${v.statut} — ${v.contrat_url}`).join('\n\n');
+      alert('Historique des versions du contrat :\n\n' + lignes);
+    });
   });
   document.querySelectorAll('[data-generer-contrat]').forEach(btn => {
     btn.addEventListener('click', async () => {

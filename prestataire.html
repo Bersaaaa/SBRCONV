@@ -28,6 +28,7 @@
     </div>
   </div>
   <div class="right">
+    <button class="btn btn-ghost" id="notif-btn">🔔</button>
     <button class="btn btn-ghost" id="recap-btn">🗓️ Récap hebdo</button>
     <button class="btn btn-ghost" id="mes-documents-btn">📄 Mes documents</button>
     <span id="who"></span>
@@ -672,6 +673,8 @@ async function init() {
     document.getElementById('contrat-banner').classList.remove('hidden');
   }
 
+  refreshNotifBtn();
+
   loadMissions();
 }
 
@@ -1020,6 +1023,10 @@ document.getElementById('sign-submit').addEventListener('click', async () => {
     });
     if (rpcErr) throw rpcErr;
 
+    await supabaseClient.from('contrats_historique').insert({
+      prestataire_id: currentUser.id, contrat_url: pdfPub.publicUrl, statut: 'signe'
+    });
+
     document.getElementById('sign-overlay').classList.add('hidden');
     document.getElementById('contrat-banner').classList.add('hidden');
     currentProfile.contrat_statut = 'signe';
@@ -1029,6 +1036,54 @@ document.getElementById('sign-submit').addEventListener('click', async () => {
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = 'Valider ma signature';
+  }
+});
+
+/* --- Notifications push --- */
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function refreshNotifBtn() {
+  const btn = document.getElementById('notif-btn');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_PUBLIC_KEY) {
+    btn.style.display = 'none';
+    return;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  btn.textContent = sub ? '🔔 Activées' : '🔕 Activer les notifs';
+}
+
+document.getElementById('notif-btn').addEventListener('click', async () => {
+  if (!VAPID_PUBLIC_KEY) { alert("Les notifications push ne sont pas configurées sur ce site."); return; }
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { alert('Notifications refusées.'); return; }
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const json = sub.toJSON();
+    await supabaseClient.from('push_subscriptions').upsert({
+      user_id: currentUser.id,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth
+    }, { onConflict: 'endpoint' });
+
+    refreshNotifBtn();
+    alert('Notifications activées sur cet appareil !');
+  } catch (err) {
+    alert('Erreur : ' + (err.message || err));
   }
 });
 
@@ -1166,12 +1221,19 @@ function renderDocRows() {
     const verifLine = path
       ? (verif ? `<div class="meta">${VERDICT_LABEL[verif.statut] || ''}${verif.commentaire ? ' — ' + verif.commentaire : ''}</div>` : `<div class="meta">Vérification IA en cours...</div>`)
       : '';
+    const assuranceDateField = d.key === 'assurance'
+      ? `<div style="margin-top:8px;">
+          <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Date de validité de l'assurance</label>
+          <input type="date" id="doc-assurance-validite" value="${currentProfile.assurance_validite_le || ''}">
+        </div>`
+      : '';
     return `
       <div class="field" style="border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px;">
         <label style="margin-bottom:4px;">${d.label}</label>
         <div class="meta" style="margin-bottom:6px;">${path ? 'Déposé ✓' : 'Pas encore déposé'}${path ? ` — <a href="#" data-view-doc="${d.key}" style="color:var(--blue-soft);">Voir</a>` : ''}</div>
         ${verifLine}
         <input type="file" data-doc-file="${d.key}" accept="image/*,application/pdf" style="margin-top:6px;">
+        ${assuranceDateField}
       </div>`;
   }).join('');
 
@@ -1225,10 +1287,12 @@ document.getElementById('documents-form').addEventListener('submit', async (e) =
       p_doc_kbis_path: paths.kbis,
       p_doc_assurance_path: paths.assurance,
       p_doc_cni_path: paths.cni,
-      p_doc_permis_path: paths.permis
+      p_doc_permis_path: paths.permis,
+      p_assurance_validite_le: document.getElementById('doc-assurance-validite').value || null
     });
     if (rpcErr) throw rpcErr;
 
+    currentProfile.assurance_validite_le = document.getElementById('doc-assurance-validite').value || null;
     currentProfile.nom_societe = document.getElementById('doc-nom-societe').value || null;
     currentProfile.site_web = document.getElementById('doc-site-web').value || null;
     Object.keys(paths).forEach(k => { if (paths[k]) currentProfile['doc_' + k + '_path'] = paths[k]; });

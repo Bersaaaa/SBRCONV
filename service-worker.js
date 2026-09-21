@@ -3,7 +3,7 @@
 // chargement instantané et l'installation en PWA. Les données (Supabase)
 // ne sont JAMAIS mises en cache : toujours en direct depuis le réseau.
 
-const CACHE_NAME = 'sbr-auto-v1';
+const CACHE_NAME = 'sbr-convoyage-v2';
 const APP_SHELL = [
   './index.html',
   './connexion.html',
@@ -12,6 +12,8 @@ const APP_SHELL = [
   './inscription.html',
   './mentions-legales.html',
   './cgv.html',
+  './reinitialiser-mot-de-passe.html',
+  './suivi.html',
   './style.css',
   './config.js',
   './manifest.json',
@@ -53,4 +55,23 @@ self.addEventListener('fetch', (event) => {
       })
     );
   }
+});
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'SBR CONVOYAGE', body: 'Nouvelle notification', url: './' };
+  try { payload = { ...payload, ...event.data.json() }; } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      data: { url: payload.url || './' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || './';
+  event.waitUntil(clients.openWindow(url));
 });

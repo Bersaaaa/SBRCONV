@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR CONVOYAGE — Nouveau mot de passe</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBR CONVOYAGE">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="login-screen">
+  <div class="login-box">
+    <div class="brand">
+      <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
+      <div class="names">
+        <h1>SBR CONVOYAGE</h1>
+        <span class="sub">Nouveau mot de passe</span>
+      </div>
+    </div>
+
+    <div class="login-panel">
+      <div id="msg"></div>
+      <form id="reset-form">
+        <div class="field">
+          <label for="password">Nouveau mot de passe</label>
+          <input type="password" id="password" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="password2">Confirmer le mot de passe</label>
+          <input type="password" id="password2" required minlength="6" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary" id="reset-submit" style="width:100%;padding:11px;">Valider</button>
+      </form>
+    </div>
+
+    <div style="text-align:center; margin-top:16px;">
+      <a href="connexion.html" style="color:var(--text-muted); font-size:13px;">Retour à la connexion</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('reset-form');
+const msgEl = document.getElementById('msg');
+function showMsg(text, type) { msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`; }
+
+// Le lien reçu par email connecte automatiquement une session "recovery"
+supabaseClient.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    showMsg('Choisis ton nouveau mot de passe.', 'ok');
+  }
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = document.getElementById('password').value;
+  const password2 = document.getElementById('password2').value;
+  if (password !== password2) {
+    showMsg('Les deux mots de passe ne correspondent pas.', 'error');
+    return;
+  }
+
+  const submitBtn = document.getElementById('reset-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Enregistrement...';
+
+  const { error } = await supabaseClient.auth.updateUser({ password });
+
+  if (error) {
+    showMsg("Erreur : " + error.message + " — le lien a peut-être expiré, redemande-en un depuis la page de connexion.", 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Valider';
+    return;
+  }
+
+  form.classList.add('hidden');
+  showMsg('Mot de passe mis à jour ! Tu peux te connecter.', 'ok');
+  setTimeout(() => { window.location.href = 'connexion.html'; }, 2000);
+});
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

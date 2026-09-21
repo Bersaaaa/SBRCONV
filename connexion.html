@@ -42,6 +42,9 @@
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;padding:11px;">Se connecter</button>
       </form>
+      <div style="text-align:center; margin-top:14px;">
+        <a href="#" id="forgot-password-link" style="color:var(--text-muted); font-size:12.5px;">Mot de passe oublié ?</a>
+      </div>
     </div>
 
     <div style="text-align:center; margin-top:16px;">
@@ -60,6 +63,23 @@ const msgEl = document.getElementById('msg');
 function showMsg(text, type) {
   msgEl.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
 }
+
+document.getElementById('forgot-password-link').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  if (!email) {
+    showMsg("Renseigne d'abord ton email ci-dessus, puis clique à nouveau sur \"Mot de passe oublié ?\".", 'error');
+    return;
+  }
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname.replace('connexion.html', 'reinitialiser-mot-de-passe.html')
+  });
+  if (error) {
+    showMsg("Erreur : " + error.message, 'error');
+  } else {
+    showMsg("Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.", 'ok');
+  }
+});
 
 async function redirectByRole(userId) {
   const { data: profile, error } = await supabaseClient

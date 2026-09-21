@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBR CONVOYAGE — Suivi de mission</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16181D">
+<link rel="apple-touch-icon" href="icons/icon-apple-touch.png">
+<link rel="icon" href="icons/icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <img src="icons/logo-mark.png" class="mark" alt="SBR CONVOYAGE">
+    <div class="names">
+      <h1>SBR CONVOYAGE</h1>
+      <span class="sub">Suivi de mission</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" style="max-width:600px;">
+  <div id="suivi-content">
+    <div class="loading-row"><span class="spinner"></span>Chargement...</div>
+  </div>
+</div>
+
+<!-- Modale signature client -->
+<div class="hidden modal-overlay" id="client-sign-overlay" style="position:fixed;inset:0;background:rgba(10,11,13,0.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60;">
+  <div class="panel" style="max-width:440px;width:100%;">
+    <div class="panel-head">
+      <strong>Signature à la livraison</strong>
+      <button class="btn btn-ghost" id="client-sign-close" type="button">Fermer</button>
+    </div>
+    <div class="field">
+      <label>Nom du signataire</label>
+      <input type="text" id="client-sign-nom" required placeholder="Nom et prénom">
+    </div>
+    <div class="field-hint" style="margin-bottom:10px;">Je confirme la bonne réception du véhicule dans l'état décrit.</div>
+    <div style="background:#fff; border-radius:var(--radius-sm); border:1px solid var(--border);">
+      <canvas id="client-sign-canvas" width="400" height="150" style="width:100%; height:150px; display:block; cursor:crosshair;"></canvas>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button type="button" class="btn btn-ghost btn-sm" id="client-sign-clear">Effacer</button>
+    </div>
+    <button type="button" class="btn btn-primary" id="client-sign-submit" style="width:100%;padding:11px;margin-top:14px;">Valider ma signature</button>
+  </div>
+</div>
+
+<script>
+const TYPE_LABEL = { convoyage: 'Convoyage', nettoyage: 'Nettoyage', inspection: 'Inspection', autre: 'Autre' };
+let suiviToken = null;
+let missionData = null;
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' à ' +
+         d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function loadSuivi() {
+  const params = new URLSearchParams(window.location.search);
+  suiviToken = params.get('m');
+  const content = document.getElementById('suivi-content');
+
+  if (!suiviToken) {
+    content.innerHTML = '<div class="panel"><p>Lien invalide.</p></div>';
+    return;
+  }
+
+  const { data, error } = await supabaseClient.rpc('get_mission_pour_suivi', { p_suivi_token: suiviToken });
+  const mission = data && data[0];
+
+  if (error || !mission) {
+    content.innerHTML = '<div class="panel"><p>Mission introuvable. Vérifie le lien reçu.</p></div>';
+    return;
+  }
+
+  missionData = mission;
+
+  const STATUT_LABEL = { disponible: 'En attente d\'attribution', acceptee: 'Prestataire assigné', en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée' };
+
+  let signatureBlock;
+  if (mission.client_signe_le) {
+    signatureBlock = `<div class="msg msg-ok">Réception confirmée le ${formatDate(mission.client_signe_le)}${mission.prestataire_nom ? ' — merci !' : ''}</div>`;
+  } else if (mission.statut === 'terminee') {
+    signatureBlock = `<button class="btn btn-primary" id="open-client-sign" style="width:100%;padding:12px;margin-top:14px;">Signer la réception du véhicule</button>`;
+  } else {
+    signatureBlock = `<div class="field-hint">La signature de réception sera disponible une fois la mission clôturée.</div>`;
+  }
+
+  content.innerHTML = `
+    <div class="panel">
+      <div class="statut-pill" style="font-weight:700; color:var(--text); margin-bottom:10px;">${STATUT_LABEL[mission.statut] || mission.statut}</div>
+      <p class="titre" style="font-size:18px;">${mission.titre}</p>
+      <div class="meta" style="margin-top:10px; line-height:1.8;">
+        <strong>Type :</strong> ${TYPE_LABEL[mission.type] || mission.type}<br>
+        ${mission.vehicule ? `<strong>Véhicule :</strong> ${mission.vehicule}<br>` : ''}
+        ${mission.lieu_depart || mission.lieu_arrivee ? `<strong>Trajet :</strong> ${mission.lieu_depart || '?'} → ${mission.lieu_arrivee || '?'}<br>` : ''}
+        ${mission.date_prevue ? `<strong>Date prévue :</strong> ${formatDate(mission.date_prevue)}<br>` : ''}
+        ${mission.prestataire_nom ? `<strong>Prestataire :</strong> ${mission.prestataire_nom}<br>` : ''}
+      </div>
+      ${signatureBlock}
+    </div>`;
+
+  const openBtn = document.getElementById('open-client-sign');
+  if (openBtn) openBtn.addEventListener('click', openClientSign);
+}
+
+let clientSignCtx = null;
+let clientSignHasDrawn = false;
+
+function setupClientCanvas() {
+  const canvas = document.getElementById('client-sign-canvas');
+  const ratio = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * ratio;
+  canvas.height = 150 * ratio;
+  clientSignCtx = canvas.getContext('2d');
+  clientSignCtx.scale(ratio, ratio);
+  clientSignCtx.lineWidth = 2;
+  clientSignCtx.lineCap = 'round';
+  clientSignCtx.strokeStyle = '#16181D';
+  clientSignHasDrawn = false;
+}
+
+function pointerPos(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const point = e.touches ? e.touches[0] : e;
+  return { x: point.clientX - rect.left, y: point.clientY - rect.top };
+}
+
+function bindClientCanvasEvents() {
+  const canvas = document.getElementById('client-sign-canvas');
+  let drawing = false;
+  const start = (e) => { e.preventDefault(); drawing = true; const p = pointerPos(canvas, e); clientSignCtx.beginPath(); clientSignCtx.moveTo(p.x, p.y); };
+  const move = (e) => { if (!drawing) return; e.preventDefault(); const p = pointerPos(canvas, e); clientSignCtx.lineTo(p.x, p.y); clientSignCtx.stroke(); clientSignHasDrawn = true; };
+  const end = () => { drawing = false; };
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+}
+
+function openClientSign() {
+  document.getElementById('client-sign-overlay').classList.remove('hidden');
+  setTimeout(() => { setupClientCanvas(); bindClientCanvasEvents(); }, 0);
+}
+document.getElementById('client-sign-close').addEventListener('click', () => {
+  document.getElementById('client-sign-overlay').classList.add('hidden');
+});
+document.getElementById('client-sign-clear').addEventListener('click', () => setupClientCanvas());
+
+document.getElementById('client-sign-submit').addEventListener('click', async () => {
+  const nom = document.getElementById('client-sign-nom').value.trim();
+  if (!nom) { alert('Indique le nom du signataire.'); return; }
+  if (!clientSignHasDrawn) { alert('Dessine ta signature avant de valider.'); return; }
+
+  const btn = document.getElementById('client-sign-submit');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement...';
+
+  try {
+    const canvas = document.getElementById('client-sign-canvas');
+    const sigDataUrl = canvas.toDataURL('image/png');
+    const sigBlob = await (await fetch(sigDataUrl)).blob();
+
+    const path = `client-signatures/${suiviToken}-${Date.now()}.png`;
+    const { error: upErr } = await supabaseClient.storage.from('signatures').upload(path, sigBlob, { contentType: 'image/png' });
+    if (upErr) throw upErr;
+    const { data: pub } = supabaseClient.storage.from('signatures').getPublicUrl(path);
+
+    const { error: rpcErr } = await supabaseClient.rpc('signer_mission_client', {
+      p_suivi_token: suiviToken,
+      p_signature_url: pub.publicUrl,
+      p_nom_signataire: nom
+    });
+    if (rpcErr) throw rpcErr;
+
+    document.getElementById('client-sign-overlay').classList.add('hidden');
+    loadSuivi();
+  } catch (err) {
+    alert('Erreur : ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Valider ma signature';
+  }
+});
+
+loadSuivi();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

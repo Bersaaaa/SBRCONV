@@ -43,7 +43,8 @@ pas encore passées :
 8. `migration_v9.sql` (informations légales : SIRET, forme juridique, adresse) — si pas encore fait.
 9. `migration_v10.sql` (documents prestataire : Kbis, assurance pro, CNI, permis — stockage privé) — si pas encore fait.
 10. `migration_v11.sql` (vérification automatique des documents par IA) — si pas encore fait.
-11. `migration_v12.sql` (nom du client sur la mission, pour le contrat).
+11. `migration_v12.sql` (nom du client sur la mission, pour le contrat) — si pas encore fait.
+12. `migration_v13.sql` (RGPD, expiration assurance, notifications push, historique des contrats, suivi + signature client public).
 
 Ensuite dans les deux cas :
 1. Va dans **Project Settings → API** : copie `Project URL` et `anon public key`.
@@ -217,6 +218,33 @@ uploadables et consultables normalement — seul le petit encart "verdict
 IA" restera vide ("IA en cours...") indéfiniment, sans bloquer quoi que
 ce soit.
 
+### Notifications push sur le téléphone (optionnel, un peu technique)
+
+En plus des emails, tes prestataires peuvent recevoir une vraie
+notification sur leur téléphone (comme n'importe quelle appli), même
+PWA fermée.
+
+1. Génère une paire de clés VAPID (une seule fois, sur ton ordinateur,
+   avec Node.js installé) :
+   ```
+   npx web-push generate-vapid-keys
+   ```
+   Ça te donne une clé publique et une clé privée.
+2. Colle la clé **publique** dans `config.js`, variable `VAPID_PUBLIC_KEY`.
+3. Configure la clé **privée** comme secret de la fonction `notify-mission` :
+   ```
+   supabase secrets set VAPID_PUBLIC_KEY=ta_cle_publique
+   supabase secrets set VAPID_PRIVATE_KEY=ta_cle_privee
+   ```
+4. Redéploie la fonction : `supabase functions deploy notify-mission`.
+5. Le webhook "Update" sur `missions` que tu as déjà configuré pour les
+   emails déclenche aussi les notifications push — rien d'autre à faire
+   côté Supabase.
+
+Sans clé VAPID configurée, le bouton 🔔 reste simplement masqué côté
+prestataire — aucun risque de casser quoi que ce soit si tu ne configures
+pas cette partie.
+
 ### Relance automatique (optionnel, nécessite les emails ci-dessus)
 
 Si une mission reste "disponible" plus de 24h sans prestataire, un email
@@ -249,6 +277,41 @@ toutes les missions concernées, pas un par mission).
    Project Settings → API).
 
 ## Fonctionnement
+
+- **Mot de passe oublié** : lien "Mot de passe oublié ?" sur `connexion.html`
+  → email envoyé par Supabase → nouvelle page `reinitialiser-mot-de-passe.html`
+  pour en choisir un nouveau. Aucune configuration nécessaire, ça marche
+  directement avec Supabase Auth.
+- **Export CSV** : bouton "⬇️ Export CSV" dans `admin.html` → toutes les
+  missions avec dates, montants HT/TTC, statut de paiement, n° de facture
+  — prêt à importer dans SBR COMPTA ou un tableur.
+- **Calendrier** : bouton "📅 Calendrier" → vue mensuelle des missions par
+  date prévue, avec navigation mois précédent/suivant.
+- **Consentement RGPD** : case à cocher obligatoire à l'inscription
+  prestataire, avec horodatage enregistré.
+- **Anti-spam à l'inscription** : champ piège invisible (les bots le
+  remplissent, pas les humains) + refus si le formulaire est envoyé en
+  moins de 3 secondes. Léger mais efficace contre le spam automatisé de
+  base ; n'arrête pas un spammeur déterminé qui cible spécifiquement ton
+  site.
+- **Alerte expiration assurance** : le prestataire renseigne la date de
+  validité de son assurance pro dans "Mes documents". Elle apparaît dans
+  "À traiter" dès qu'il reste moins de 30 jours, ou qu'elle est expirée.
+- **Historique des contrats** : chaque nouvelle génération (brouillon ou
+  signée) est maintenant conservée, pas seulement écrasée. Lien
+  "historique des versions" sur chaque prestataire dans le panneau
+  Prestataires.
+- **Suivi + signature client** (nouveau, inspiré du CMR du secteur) :
+  chaque mission a un lien de suivi public (`suivi.html?m=...`), à
+  transmettre au client final — aucun compte requis. Il y voit le statut
+  de sa mission, et peut signer électroniquement la réception du véhicule
+  une fois la mission clôturée (comme la case "Signature et tampon
+  client" d'un CMR classique). Bouton "Copier le lien de suivi client"
+  sur chaque mission dans `admin.html`.
+- **Notifications push** (optionnel, configuration plus avancée — voir
+  section dédiée ci-dessous) : en plus de l'email, le prestataire peut
+  activer les notifications directement sur son téléphone via le bouton
+  🔔 dans son espace.
 
 - **Contrat cadre enrichi** (inspiré de contrats du secteur du convoyage) :
   durée de 6 mois renouvelable par tacite reconduction (périodes de 3

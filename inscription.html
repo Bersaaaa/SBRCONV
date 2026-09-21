@@ -37,6 +37,10 @@
       <div id="msg"></div>
 
       <form id="inscription-form">
+        <div style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
+          <label for="site-web-perso">Ne pas remplir</label>
+          <input type="text" id="site-web-perso" name="site-web-perso" tabindex="-1" autocomplete="off">
+        </div>
         <div class="field">
           <label for="nom">Nom et prénom</label>
           <input type="text" id="nom" required>
@@ -107,6 +111,12 @@
           <label for="doc-permis">Permis de conduire *</label>
           <input type="file" id="doc-permis" accept="image/*,application/pdf" required>
         </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:500; cursor:pointer;">
+            <input type="checkbox" id="rgpd-consentement" required style="width:auto; margin-top:3px;">
+            <span>J'accepte que mes données (y compris les documents déposés) soient traitées par SBR CONVOYAGE dans le cadre de la gestion de mon compte prestataire, conformément à la <a href="mentions-legales.html" target="_blank" style="color:var(--blue-soft);">politique de confidentialité</a>. *</span>
+          </label>
+        </div>
         <button type="submit" class="btn btn-primary" id="inscription-submit" style="width:100%;padding:11px;">Envoyer ma demande</button>
       </form>
     </div>
@@ -122,6 +132,7 @@
 
 <script>
 const form = document.getElementById('inscription-form');
+const formLoadedAt = Date.now();
 const msgEl = document.getElementById('msg');
 
 function attachAddressAutocomplete(inputId) {
@@ -173,6 +184,17 @@ function showMsg(text, type) {
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  // Anti-spam : champ piège rempli, ou envoi trop rapide (bot) → on bloque
+  // silencieusement sans donner d'indice à un éventuel bot
+  if (document.getElementById('site-web-perso').value) {
+    return;
+  }
+  if (Date.now() - formLoadedAt < 3000) {
+    showMsg("Merci de prendre quelques secondes pour vérifier ton formulaire avant d'envoyer.", 'error');
+    return;
+  }
+
   const submitBtn = document.getElementById('inscription-submit');
   submitBtn.disabled = true;
   submitBtn.textContent = 'Envoi en cours...';
@@ -199,6 +221,12 @@ form.addEventListener('submit', async (e) => {
     submitBtn.textContent = 'Envoyer ma demande';
     return;
   }
+  if (!document.getElementById('rgpd-consentement').checked) {
+    showMsg("Merci d'accepter le traitement de tes données pour continuer.", 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Envoyer ma demande';
+    return;
+  }
 
   try {
     const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({ email, password });
@@ -216,7 +244,9 @@ form.addEventListener('submit', async (e) => {
       email,
       specialites,
       actif: false,
-      en_attente_validation: true
+      en_attente_validation: true,
+      rgpd_consentement: true,
+      rgpd_consentement_le: new Date().toISOString()
     });
     if (profileError) throw profileError;
 
