@@ -129,6 +129,23 @@
   nav.tabs button.active{background:var(--primary-light);color:var(--primary);font-weight:700;}
   nav.tabs .emoji{font-size:13px;width:16px;text-align:center;opacity:0.85;}
 
+  /* ---- Gros boutons repliables "Location" / "Compta" ---- */
+  .nav-group-big{
+    display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+    background:var(--page);border:1px solid var(--border);color:var(--text);
+    padding:11px 12px;border-radius:10px;font-size:13.5px;font-weight:700;
+    cursor:pointer;margin:10px 0 4px;transition:.15s;
+  }
+  .nav-group-big:hover{border-color:var(--primary-soft);}
+  .nav-group-big .nav-group-big-icon{font-size:16px;flex:0 0 auto;}
+  .nav-group-big .nav-group-big-label{flex:1;}
+  .nav-group-big .nav-group-big-chev{color:var(--muted);font-size:11px;flex:0 0 auto;}
+  .nav-group-big.open{background:var(--primary-light);border-color:var(--primary-soft);color:var(--primary);}
+  .nav-group-big.open .nav-group-big-chev{color:var(--primary);}
+  .nav-subitems{max-height:0;overflow:hidden;transition:max-height .22s ease;}
+  .nav-subitems.open{max-height:700px;}
+  .nav-subitems button{padding-left:23px;}
+
   .user-row{display:flex;align-items:center;gap:9px;padding:14px 16px;border-top:1px solid var(--border);cursor:pointer;}
   .user-row .av{width:30px;height:30px;border-radius:8px;background:var(--border-2);color:var(--text);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;letter-spacing:0.5px;flex:0 0 auto;}
   .user-row .u-name{font-size:12.5px;font-weight:600;line-height:1.25;}
@@ -308,6 +325,14 @@
 
   /* KPI 2x2 style (Piloote-like) */
   .grid-kpi2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px;}
+  /* ---- Vue d'ensemble : grille de tuiles Location + Compta mélangées ---- */
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:18px;}
+  .ov-tile{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;cursor:pointer;transition:.15s;}
+  .ov-tile:hover{border-color:var(--primary-soft);transform:translateY(-1px);}
+  .ov-tile .ov-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:12px;}
+  .ov-tile .ov-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+  .ov-tile .ov-value{font-size:21px;font-weight:800;color:var(--text);letter-spacing:-.3px;word-break:break-word;}
+  .ov-tile .ov-sub{font-size:11px;color:var(--muted);margin-top:4px;}
   .kpi2{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
   .kpi2 .kpi2-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .kpi2 .label{font-size:13px;font-weight:600;color:var(--text);}
@@ -563,23 +588,24 @@
    --muted, --red, .card).
    ============================================================ */
 #comptaRoot{
-    --bg:#0a0d13; --bg2:#0f131b; --panel:#131822; --panel2:#1a212e; --panel3:#212a3a; --border:#26303f;
-    --text:#eef2f8; --muted:#8b9bb0; --accent:#4fb2ff; --accent-dim:#2e6fa3; --accent2:#2fd398;
-    --violet:#b39bfb; --red:#ff6b6b; --amber:#ffc266; --radius:16px; --radius-sm:10px;
-    --shadow: 0 10px 30px -12px rgba(0,0,0,.5);
+    /* Thème aligné sur SBR AUTO (clair). --border/--text/--muted/--red/--amber/--radius
+       ne sont volontairement PAS redéfinies ici : elles héritent telles quelles des
+       variables :root de SBR AUTO, pour que les deux volets se ressemblent exactement.
+       Seuls les noms propres à SBR COMPTA (sans équivalent chez SBR AUTO) sont fixés. */
+    --bg: var(--page); --bg2:#ffffff; --panel: var(--card); --panel2:#f1f2f5; --panel3:#eef0f3;
+    --accent: var(--primary); --accent-dim: var(--primary-hover); --accent2: var(--green);
+    --violet:#7c5cff; --radius-sm:10px;
+    --shadow: 0 1px 3px rgba(16,24,40,.06);
   }
 #comptaRoot *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-#comptaRoot{color-scheme:dark;}
-#comptaRoot{margin:0;background:
-      radial-gradient(1100px 500px at 15% -10%, rgba(79,178,255,.10), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgba(47,211,152,.08), transparent 55%),
-      var(--bg);
+#comptaRoot{color-scheme:light;}
+#comptaRoot{margin:0;background:var(--bg);
     color:var(--text);font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     -webkit-font-smoothing:antialiased;min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
 #comptaRoot header{padding:max(16px,env(safe-area-inset-top)) 14px 0;position:sticky;top:0;z-index:10;
     background:linear-gradient(180deg, var(--bg) 78%, transparent);backdrop-filter:blur(6px);}
 #comptaRoot .brand{display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;}
-#comptaRoot .logo{width:32px;height:32px;border-radius:9px;overflow:hidden;flex-shrink:0;box-shadow:0 4px 14px -2px rgba(79,178,255,.5);}
+#comptaRoot .logo{width:32px;height:32px;border-radius:9px;overflow:hidden;flex-shrink:0;box-shadow:0 4px 14px -2px rgba(68,87,230,.35);}
 #comptaRoot .logo img{width:100%;height:100%;object-fit:cover;display:block;}
 #comptaRoot h1{font-family:'Space Grotesk',sans-serif;font-size:17px;margin:0;letter-spacing:.2px;font-weight:700;}
 #comptaRoot .brand-spacer{flex:1;}
@@ -686,9 +712,9 @@
 #comptaRoot .ia-answer ul{margin:0 0 8px 0;padding-left:18px;}
 #comptaRoot .ia-answer li{margin-bottom:4px;}
 #comptaRoot .ia-table{width:100%;border-collapse:collapse;margin:6px 0 12px 0;font-size:13px;}
-#comptaRoot .ia-table th, #comptaRoot .ia-table td{border:1px solid rgba(255,255,255,.12);padding:6px 8px;text-align:left;}
+#comptaRoot .ia-table th, #comptaRoot .ia-table td{border:1px solid var(--border);padding:6px 8px;text-align:left;}
 #comptaRoot .ia-table th{font-weight:600;}
-#comptaRoot .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px;}
+#comptaRoot .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:currentColor;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px;}
 @keyframes sp{to{transform:rotate(360deg);}}
 #comptaRoot .divider{height:1px;background:var(--border);margin:12px 0;}
 #comptaRoot .receipt-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;white-space:nowrap;}
@@ -1654,7 +1680,7 @@ async function refreshData(){
 
 /* ============================= NAVIGATION (groupée façon Piloote) ============================= */
 const ALL_TABS = [
-  {id:'dashboard', label:'Dashboard', emoji:'🏠'},
+  {id:'dashboard', label:'Vue d\'ensemble', emoji:'🏠'},
   {id:'rentabilite', label:'Rentabilité', emoji:'📊'},
   {id:'planningVeh', label:'Planning Véhicules', emoji:'📅'},
   {id:'planningSiege', label:'Planning Sièges', emoji:'🪑'},
@@ -1682,31 +1708,46 @@ const TAB_LABELS = Object.fromEntries([
   ...ALL_TABS_COMBINED.map(t=>[t.id,t.label]),
   ['parametres','Paramètres'], ['corbeille','Corbeille']
 ]);
-/* Liste complète pour la barre d'onglets mobile — labels courts pour tenir
-   sous chaque icône (le libellé complet reste utilisé partout ailleurs). */
+/* Barre d'onglets mobile : 4 gros boutons (Accueil / Location / Compta / Plus).
+   Location et Compta n'ouvrent pas directement une page : ils ouvrent la
+   sidebar (le même composant que sur ordinateur/tablette) repliée sur leur
+   groupe, avec tous leurs sous-boutons dedans — cohérent sur tous les écrans. */
 const MOBILE_TABBAR_ITEMS = [
-  {id:'dashboard', emoji:'🏠', short:'Accueil'},
-  {id:'rentabilite', emoji:'📊', short:'Renta'},
-  {id:'planningVeh', emoji:'📅', short:'Planning V.'},
-  {id:'planningSiege', emoji:'🪑', short:'Planning S.'},
-  {id:'vehicules', emoji:'🚗', short:'Véhicules'},
-  {id:'amendes', emoji:'🚨', short:'Amendes'},
-  {id:'parametres', emoji:'⚙️', short:'Réglages'},
-  {id:'corbeille', emoji:'🗑️', short:'Corbeille'}
+  {id:'dashboard', emoji:'🏠', short:'Accueil', kind:'tab'},
+  {id:'__location', emoji:'🚗', short:'Location', kind:'group', group:'Location'},
+  {id:'__compta', emoji:'💶', short:'Compta', kind:'group', group:'Compta'},
+  {id:'__plus', emoji:'⚙️', short:'Plus', kind:'group', group:'Administration'}
 ];
 function renderMobileTabBar(){
   const el = document.getElementById('mobileTabBar');
   if(!el) return;
-  const allowedIds = new Set(currentNavGroups().flatMap(g=>g.items).map(t=>t.id));
-  const items = MOBILE_TABBAR_ITEMS.filter(t => allowedIds.has(t.id));
-  el.innerHTML = items.map(t => `
-    <button class="mtb-item ${activeTab===t.id?'active':''}" onclick="setTab('${t.id}')" data-tab="${t.id}">
+  const groups = currentNavGroups();
+  const groupLabels = new Set(groups.map(g=>g.label));
+  const items = MOBILE_TABBAR_ITEMS.filter(t => t.kind==='tab' ? true : groupLabels.has(t.group));
+  const activeGroup = groups.find(g=>g.items.some(it=>it.id===activeTab));
+  el.innerHTML = items.map(t => {
+    const isActive = t.kind==='tab' ? activeTab===t.id : (activeGroup && activeGroup.label===t.group);
+    const action = t.kind==='tab' ? `setTab('${t.id}')` : `openMobileNavGroup('${t.group}')`;
+    return `
+    <button class="mtb-item ${isActive?'active':''}" onclick="${action}" data-tab="${t.id}">
       <span class="mtb-icon">${t.emoji}</span>
       <span class="mtb-label">${t.short}</span>
     </button>
-  `).join('');
+  `;
+  }).join('');
   const activeBtn = el.querySelector('.mtb-item.active');
   if(activeBtn) activeBtn.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+}
+/* Ouvre la sidebar (desktop : déjà visible ; mobile : tiroir ☰) directement
+   dépliée sur le groupe demandé, et fait défiler jusqu'à lui. */
+function openMobileNavGroup(label){
+  toggleNavGroup(label, true);
+  document.getElementById('sidebar').classList.add('open');
+  requestAnimationFrame(()=>{
+    const headers = document.querySelectorAll('#tabs .nav-group-big, #tabs .nav-group-label');
+    const target = Array.from(headers).find(elm => elm.textContent.trim().startsWith(label));
+    if(target) target.scrollIntoView({block:'start', behavior:'smooth'});
+  });
 }
 function updateTopTitle(){
   const el = document.getElementById('topTitle');
@@ -1720,7 +1761,7 @@ window.addEventListener('scroll', () => {
   if(content) content.classList.toggle('scrolled', scrolled);
 }, {passive:true});
 const NAV_GROUPS_ADMIN = [
-  { label: 'Général', items: [ {id:'dashboard', label:'Dashboard', emoji:'🏠'} ] },
+  { label: 'Général', items: [ {id:'dashboard', label:'Vue d\'ensemble', emoji:'🏠'} ] },
   { label: 'Location', items: ALL_TABS.filter(t=>t.id!=='dashboard') },
   { label: 'Compta', items: COMPTA_TABS },
   { label: 'Administration', items: [ {id:'parametres', label:'Paramètres', emoji:'⚙️'}, {id:'corbeille', label:'Corbeille', emoji:'🗑️'} ] }
@@ -1746,12 +1787,41 @@ function currentTabLabels(){
 }
 let activeTab = 'dashboard';
 
+/* Location et Compta sont de "gros boutons" repliables (accordéon : en ouvrir
+   un referme l'autre) — exactement le même composant sidebar sur ordinateur,
+   tablette, et mobile (ouvert en tiroir via openMobileNavGroup). */
+const BIG_NAV_GROUPS = { 'Location':'🚗', 'Compta':'💶' };
+let navOpenGroups = {};
+function toggleNavGroup(label, forceOpen){
+  if(!(label in BIG_NAV_GROUPS)){ renderTabs(); return; }
+  const willOpen = forceOpen!=null ? forceOpen : !navOpenGroups[label];
+  Object.keys(BIG_NAV_GROUPS).forEach(k=>{ navOpenGroups[k] = false; });
+  navOpenGroups[label] = willOpen;
+  renderTabs();
+}
 function renderTabs(){
   const groups = currentNavGroups();
-  document.getElementById('tabs').innerHTML = groups.map(g => `
-    <div class="nav-group-label">${g.label}</div>
-    ${g.items.map(t => `<button class="${t.id===activeTab?'active':''}" onclick="setTab('${t.id}')"><span class="emoji">${t.emoji}</span>${t.label}</button>`).join('')}
-  `).join('');
+  // Le groupe qui contient l'onglet actif reste (ou redevient) déplié.
+  groups.forEach(g=>{ if(g.label in BIG_NAV_GROUPS && g.items.some(t=>t.id===activeTab)) navOpenGroups[g.label] = true; });
+  document.getElementById('tabs').innerHTML = groups.map(g => {
+    if(g.label in BIG_NAV_GROUPS){
+      const open = !!navOpenGroups[g.label];
+      return `
+        <button class="nav-group-big ${open?'open':''}" onclick="toggleNavGroup('${g.label}')">
+          <span class="nav-group-big-icon">${BIG_NAV_GROUPS[g.label]}</span>
+          <span class="nav-group-big-label">${g.label}</span>
+          <span class="nav-group-big-chev">${open?'︿':'﹀'}</span>
+        </button>
+        <div class="nav-subitems ${open?'open':''}">
+          ${g.items.map(t => `<button class="${t.id===activeTab?'active':''}" onclick="setTab('${t.id}')"><span class="emoji">${t.emoji}</span>${t.label}</button>`).join('')}
+        </div>
+      `;
+    }
+    return `
+      <div class="nav-group-label">${g.label}</div>
+      ${g.items.map(t => `<button class="${t.id===activeTab?'active':''}" onclick="setTab('${t.id}')"><span class="emoji">${t.emoji}</span>${t.label}</button>`).join('')}
+    `;
+  }).join('');
 }
 function setTab(id){
   const content = document.getElementById('content');
@@ -2154,44 +2224,56 @@ function renderDashboard(){
   window.__dashboardAlerts = alerts.detailed;
   const cpt = comptaMonthSummary();
 
+  const displayName = (state.profile && (state.profile.nom || state.profile.email)) || 'Mon compte';
+  const prenom = displayName.split(/[\s@]/)[0];
+  const enReparation = vehicles.filter(v=>v.statut==='En réparation').length;
+
   return `
     <div class="page-head">
-      <div><h1>Dashboard</h1><div class="page-sub">Gestion et suivi de la flotte SBR AUTO</div></div>
+      <div><h1>Vue d'ensemble</h1><div class="page-sub">Bonjour ${escapeHtml(prenom)} 👋 — Location et Compta au même endroit</div></div>
       <div class="head-controls">
         <select onchange="state.ui.month=parseInt(this.value); render();">${monthOptions}</select>
         <select onchange="state.ui.year=parseInt(this.value); render();">${yearOptions}</select>
       </div>
     </div>
 
-    <div class="grid-kpi2">
-      <div class="kpi2">
-        <div class="kpi2-top"><span class="label">Véhicules actifs</span><span class="info-pill">Parc</span></div>
-        <div class="kpi2-body">
-          <div class="value">${vehActifs}</div>
-          <div class="side-stats">Total flotte <b>${vehicles.length}</b><br>En réparation <b>${vehicles.filter(v=>v.statut==='En réparation').length}</b></div>
-        </div>
+    <div class="ov-grid">
+      <div class="ov-tile" onclick="setTab('vehicules')">
+        <div class="ov-icon" style="background:var(--primary-light);color:var(--primary);">🚗</div>
+        <div class="ov-label">Véhicules actifs</div>
+        <div class="ov-value">${vehActifs}</div>
+        <div class="ov-sub">Flotte ${vehicles.length} · Réparation ${enReparation}</div>
       </div>
-      <div class="kpi2">
-        <div class="kpi2-top"><span class="label">Alertes actives</span><span class="info-pill">${totalAlerts>0?'À traiter':'OK'}</span></div>
-        <div class="kpi2-body">
-          <div class="value">${totalAlerts}</div>
-          <div class="side-stats">CT <b>${alerts.ctExpired+alerts.ctSoon}</b><br>Amendes <b>${alerts.amendesEnAttente}</b></div>
-        </div>
+      <div class="ov-tile" onclick="setTab('vehicules')">
+        <div class="ov-icon" style="background:var(--amber-bg);color:var(--amber);">🔔</div>
+        <div class="ov-label">Alertes actives</div>
+        <div class="ov-value">${totalAlerts}</div>
+        <div class="ov-sub">${totalAlerts>0?'À traiter':'Tout est en ordre'}</div>
       </div>
       ${cpt ? `
-      <div class="kpi2">
-        <div class="kpi2-top"><span class="label">Compta — ce mois-ci</span><span class="info-pill" style="cursor:pointer;" onclick="setTab('cpt_dash')">Détail</span></div>
-        <div class="kpi2-body">
-          <div class="value" style="color:${cpt.marge>=0?'var(--green)':'var(--red)'}">${fmtEUR(cpt.marge)}</div>
-          <div class="side-stats">Recettes <b style="color:var(--green)">${fmtEUR(cpt.recettes)}</b><br>Dépenses <b style="color:var(--red)">${fmtEUR(cpt.depenses)}</b></div>
-        </div>
+      <div class="ov-tile" onclick="setTab('cpt_recettes')">
+        <div class="ov-icon" style="background:var(--green-bg);color:var(--green);">📗</div>
+        <div class="ov-label">Recettes — ce mois</div>
+        <div class="ov-value">${fmtEUR(cpt.recettes)}</div>
+        <div class="ov-sub">Compta</div>
       </div>
-      <div class="kpi2">
-        <div class="kpi2-top"><span class="label">Compta — à surveiller</span><span class="info-pill" style="cursor:pointer;" onclick="setTab('cpt_verif')">${cpt.aVerifier>0?'À traiter':'OK'}</span></div>
-        <div class="kpi2-body">
-          <div class="value">${cpt.aVerifier}</div>
-          <div class="side-stats">Écritures à vérifier${cpt.tva ? `<br>TVA Vente <b>${cpt.tva.pctVente}%</b> · Service <b>${cpt.tva.pctService}%</b>` : ''}</div>
-        </div>
+      <div class="ov-tile" onclick="setTab('cpt_depenses')">
+        <div class="ov-icon" style="background:var(--red-bg);color:var(--red);">📕</div>
+        <div class="ov-label">Dépenses — ce mois</div>
+        <div class="ov-value">${fmtEUR(cpt.depenses)}</div>
+        <div class="ov-sub">Compta</div>
+      </div>
+      <div class="ov-tile" onclick="setTab('cpt_dash')">
+        <div class="ov-icon" style="background:${cpt.marge>=0?'var(--green-bg)':'var(--red-bg)'};color:${cpt.marge>=0?'var(--green)':'var(--red)'};">💶</div>
+        <div class="ov-label">Marge — ce mois</div>
+        <div class="ov-value" style="color:${cpt.marge>=0?'var(--green)':'var(--red)'}">${fmtEUR(cpt.marge)}</div>
+        <div class="ov-sub">Compta</div>
+      </div>
+      <div class="ov-tile" onclick="setTab('cpt_verif')">
+        <div class="ov-icon" style="background:var(--blue-bg);color:var(--blue);">⚠️</div>
+        <div class="ov-label">À vérifier</div>
+        <div class="ov-value">${cpt.aVerifier}</div>
+        <div class="ov-sub">${cpt.tva ? `TVA Vente ${cpt.tva.pctVente}% · Service ${cpt.tva.pctService}%` : 'Compta'}</div>
       </div>` : ''}
     </div>
 
