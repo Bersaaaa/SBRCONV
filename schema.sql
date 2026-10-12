@@ -1,599 +1,585 @@
--- ============================================================
--- SBR CONVOYAGE — Schéma Supabase
--- À exécuter dans le SQL Editor d'un NOUVEAU projet Supabase
--- (créer ce projet séparément de SBRAUTO / SBRCOMPTA / SBRCARTEGRISE)
--- ============================================================
+-- ============================================================================
+-- SBR AUTO — Schéma Supabase complet (tout-en-un)
+-- ============================================================================
+-- Ce script est idempotent : il peut être exécuté plusieurs fois sans erreur,
+-- sur une base neuve ou sur une base existante (il ne fait que compléter ce
+-- qui manque, il ne supprime jamais de données).
+--
+-- À exécuter dans : Supabase Dashboard > SQL Editor > New query > Run
+-- ============================================================================
 
--- 1) Profils (1 ligne par utilisateur Supabase Auth)
-create table public.profiles (
+create extension if not exists pgcrypto;
+
+-- ============================================================================
+-- NETTOYAGE DES ANCIENS MODULES SUPPRIMÉS DE SBR AUTO
+-- Ces éléments ne sont plus utilisés par l'application. Le bloc est idempotent.
+-- ============================================================================
+drop table if exists public.reservations_vitrine cascade;
+drop table if exists public.etats_lieux cascade;
+drop table if exists public.contrats cascade;
+
+alter table if exists public.vehicles drop column if exists tarif_ga;
+alter table if exists public.vehicles drop column if exists tarif_turo;
+alter table if exists public.vehicles drop column if exists visible_vitrine;
+alter table if exists public.vehicles drop column if exists prix_jour_vitrine;
+alter table if exists public.vehicles drop column if exists caution_vitrine;
+alter table if exists public.vehicles drop column if exists dispo_abonnement;
+alter table if exists public.vehicles drop column if exists photo_vitrine_url;
+alter table if exists public.params drop column if exists adresse_retrait_vitrine;
+alter table if exists public.params drop column if exists prix_option_siege_bebe;
+alter table if exists public.params drop column if exists prix_option_rehausseur;
+alter table if exists public.params drop column if exists prix_option_livraison_aeroport;
+alter table if exists public.params drop column if exists prix_option_livraison_domicile;
+alter table if exists public.params drop column if exists prix_mois_abonnement;
+
+-- Nettoyage des anciens objets de stockage liés à la vitrine.
+-- (La suppression directe de storage.objects est bloquée par Supabase par
+-- sécurité — passe par le Storage API ou l'onglet Storage du Dashboard si
+-- tu dois vraiment vider ce bucket, pas par du SQL brut.)
+drop policy if exists "vitrine_photos_public_read" on storage.objects;
+drop policy if exists "vitrine_photos_authenticated_write" on storage.objects;
+
+-- ============================================================================
+-- 1) TABLES
+-- ============================================================================
+
+-- Profils utilisateurs (droits d'accès par onglet, rôle affiché)
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  role text not null check (role in ('admin', 'prestataire')),
-  nom text not null,
-  telephone text,
-  actif boolean not null default true,
-  specialites text[] not null default '{}', -- ex: {convoyage,nettoyage}
-  contrat_url text,              -- contrat cadre autorisant le prestataire à travailler avec SBR CONVOYAGE
-  contrat_ajoute_le timestamptz,
-  contrat_statut text not null default 'non_envoye'
-    check (contrat_statut in ('non_envoye', 'en_attente_signature', 'signe')),
-  contrat_signature_url text,
-  contrat_signe_le timestamptz,
+  is_admin boolean not null default true,
+  nom text,
   email text,
-  en_attente_validation boolean not null default false,
-  missions_acceptees_total integer not null default 0,
-  missions_desistees_total integer not null default 0,
-  missions_annulees_total integer not null default 0,
-  siret text,
-  statut_juridique text,
-  nom_societe text,
-  site_web text,
-  doc_kbis_path text,
-  doc_assurance_path text,
-  doc_cni_path text,
-  doc_permis_path text,
-  adresse text,
+  role_label text,
+  allowed_tabs jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
--- 2) Missions
-create table public.missions (
-  id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('convoyage', 'nettoyage', 'inspection', 'autre')),
-  titre text not null,
-  description text,
-  vehicule text,               -- ex: "Peugeot 208 - AB-123-CD"
-  lieu_depart text,
-  lieu_arrivee text,
-  date_prevue timestamptz,
-  date_arrivee_prevue timestamptz,  -- convoyage uniquement
-  relance_envoyee_le timestamptz,
-  paye boolean not null default false,
-  paye_le timestamptz,
-  nom_client text,
-  prix_ht numeric(10,2) not null check (prix_ht >= 0),
-  taux_tva numeric(5,2) not null default 20,
-  statut text not null default 'disponible'
-    check (statut in ('disponible', 'acceptee', 'en_cours', 'terminee', 'annulee')),
-  prestataire_id uuid references public.profiles(id),
-  created_by uuid references public.profiles(id),
-  created_at timestamptz not null default now(),
-  accepted_at timestamptz,
-  termine_at timestamptz,
-  facture_numero text,
-  facture_url text,
-  facture_emise_le timestamptz,
-  contrat_url text,
-  contrat_genere_le timestamptz
+-- Paramètres généraux de l'entreprise (une seule ligne, id = 1)
+create table if not exists public.params (
+  id integer primary key default 1,
+  entreprise text,
+  siret text,
+  statut text,
+  ville text,
+  seuil_tva numeric,
+  decote_mensuelle numeric,
+  seuil_entretien_km numeric,
+  alert_email text,
+  date_debut_activite date,
+  versement_liberatoire boolean not null default false,
+  signature_loueur_url text,
+  adresse text
 );
 
--- 3) Fonction utilitaire : l'utilisateur connecté est-il admin ?
-create or replace function public.is_admin()
+-- Véhicules de la flotte
+create table if not exists public.vehicles (
+  id uuid primary key default gen_random_uuid(),
+  nom text,
+  immat text,
+  annee integer,
+  energie text,
+  critair text,
+  km numeric default 0,
+  valeur_achat numeric default 0,
+  valeur_actuelle numeric default 0,
+  prochain_ct date,
+  prochaine_assurance date,
+  prochain_entretien_km numeric default 0,
+  statut text default 'Actif',
+  notes text,
+  km_updated_at timestamptz,
+  carte_grise_url text,
+  assurance_url text,
+  autorisation_url text,
+  marque text,
+  vin text,
+  proprietaire_nom text,
+  proprietaire_naissance date,
+  proprietaire_adresse text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Recettes (ARCHIVE : registre supprimé de l'app, table conservée telle quelle
+-- pour ne perdre aucune donnée ancienne. Plus lue ni écrite par SBR AUTO.)
+create table if not exists public.recettes (
+  id uuid primary key default gen_random_uuid(),
+  immat text,
+  date date,
+  nature text,
+  categorie text,
+  montant numeric default 0,
+  mode text,
+  plateforme text,
+  notes text,
+  justificatif_url text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Achats / dépenses (ARCHIVE : registre supprimé de l'app, table conservée)
+create table if not exists public.achats (
+  id uuid primary key default gen_random_uuid(),
+  immat text,
+  date date,
+  nature text,
+  montant numeric default 0,
+  mode text,
+  categorie text,
+  justificatif text,
+  justificatif_url text,
+  notes text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Carnet d'entretien
+create table if not exists public.entretiens (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid references public.vehicles(id) on delete cascade,
+  type text,
+  type_detail text,
+  garage text,
+  date date,
+  km_realise numeric,
+  prochain_km numeric,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Amendes
+create table if not exists public.amendes (
+  id uuid primary key default gen_random_uuid(),
+  date date,
+  immat text,
+  plateforme text,
+  montant numeric default 0,
+  statut text default 'En attente',
+  notes text,
+  justificatifs_urls jsonb not null default '[]'::jsonb,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Accessoires (ex: sièges auto)
+create table if not exists public.accessories (
+  id uuid primary key default gen_random_uuid(),
+  nom text,
+  ref text,
+  statut text default 'Disponible',
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Répartition d'un montant (ARCHIVE : plus utilisée par l'app)
+create table if not exists public.montant_splits (
+  id uuid primary key default gen_random_uuid(),
+  source_table text not null,
+  source_id uuid not null,
+  vehicle_id uuid not null references public.vehicles(id) on delete cascade,
+  montant numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+-- Rentabilité par véhicule : UNE ligne par véhicule et par mois, saisie
+-- entièrement à la main dans l'onglet Rentabilité de l'app.
+create table if not exists public.renta_lignes (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid not null references public.vehicles(id) on delete cascade,
+  annee integer not null,
+  mois integer not null check (mois >= 0 and mois <= 11),
+  rev_getaround numeric default 0,
+  rev_turo numeric default 0,
+  rev_roadstr numeric default 0,
+  rev_vente numeric default 0,
+  rev_autres numeric default 0,
+  dep_assurance numeric default 0,
+  dep_credit numeric default 0,
+  dep_entretien numeric default 0,
+  dep_reparation numeric default 0,
+  dep_pneus numeric default 0,
+  dep_carburant numeric default 0,
+  dep_nettoyage numeric default 0,
+  dep_amendes numeric default 0,
+  dep_parking numeric default 0,
+  dep_autres numeric default 0,
+  decote numeric default 0,
+  notes text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Planning d'occupation des véhicules (GA / Turo / etc, par jour)
+create table if not exists public.planning_vehicules (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id uuid not null references public.vehicles(id) on delete cascade,
+  day date not null,
+  statut text,
+  created_at timestamptz not null default now()
+);
+
+-- Planning d'occupation des accessoires (par jour)
+create table if not exists public.planning_sieges (
+  id uuid primary key default gen_random_uuid(),
+  accessory_id uuid not null references public.accessories(id) on delete cascade,
+  day date not null,
+  statut text,
+  created_at timestamptz not null default now()
+);
+
+-- Historique / journal des modifications (ARCHIVE : onglet supprimé de l'app)
+create table if not exists public.historique (
+  id uuid primary key default gen_random_uuid(),
+  table_name text,
+  row_id text,
+  action text,
+  champ text,
+  ancienne_valeur text,
+  nouvelle_valeur text,
+  resume text,
+  utilisateur text,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================================================
+-- 2) COLONNES MANQUANTES (upgrade en douceur si la table existait déjà
+--    avec un schéma plus ancien / partiel)
+-- ============================================================================
+
+alter table public.profiles      add column if not exists allowed_tabs jsonb not null default '[]'::jsonb;
+alter table public.params        add column if not exists versement_liberatoire boolean not null default false;
+alter table public.vehicles      add column if not exists marque text;
+alter table public.vehicles      add column if not exists vin text;
+alter table public.vehicles      add column if not exists proprietaire_nom text;
+alter table public.vehicles      add column if not exists proprietaire_naissance date;
+alter table public.vehicles      add column if not exists proprietaire_adresse text;
+alter table public.vehicles      add column if not exists autorisation_url text;
+alter table public.vehicles      add column if not exists deleted_at timestamptz;
+alter table public.recettes      add column if not exists justificatif_url text;
+alter table public.recettes      add column if not exists deleted_at timestamptz;
+alter table public.achats        add column if not exists justificatif_url text;
+alter table public.achats        add column if not exists deleted_at timestamptz;
+alter table public.entretiens    add column if not exists type_detail text;
+alter table public.entretiens    add column if not exists garage text;
+alter table public.entretiens    add column if not exists deleted_at timestamptz;
+alter table public.amendes       add column if not exists justificatifs_urls jsonb not null default '[]'::jsonb;
+alter table public.amendes       add column if not exists deleted_at timestamptz;
+alter table public.accessories   add column if not exists deleted_at timestamptz;
+alter table public.params        add column if not exists signature_loueur_url text;
+alter table public.params        add column if not exists adresse text;
+alter table public.renta_lignes  add column if not exists rev_vente numeric default 0;
+alter table public.renta_lignes  add column if not exists dep_parking numeric default 0;
+alter table public.renta_lignes  add column if not exists notes text;
+alter table public.renta_lignes  add column if not exists deleted_at timestamptz;
+-- Colonnes conservées en base mais PLUS UTILISÉES par l'application
+-- (TVA, décote globale, versement libératoire, prélèvement à la source URSSAF).
+-- Elles ne sont pas supprimées pour ne perdre aucune donnée existante ;
+-- l'app ne les lit ni ne les écrit. La décote se saisit désormais par
+-- véhicule et par mois dans renta_lignes.decote.
+
+-- ============================================================================
+-- 3) CONTRAINTES D'UNICITÉ ET INDEX
+-- ============================================================================
+
+do $$ begin
+  alter table public.montant_splits
+    add constraint montant_splits_unique unique (source_table, source_id, vehicle_id);
+exception when duplicate_object or duplicate_table then null; end $$;
+
+do $$ begin
+  alter table public.planning_vehicules
+    add constraint planning_vehicules_unique unique (vehicle_id, day);
+exception when duplicate_object or duplicate_table then null; end $$;
+
+do $$ begin
+  alter table public.planning_sieges
+    add constraint planning_sieges_unique unique (accessory_id, day);
+exception when duplicate_object or duplicate_table then null; end $$;
+
+create index if not exists idx_recettes_deleted_at    on public.recettes(deleted_at);
+create index if not exists idx_achats_deleted_at      on public.achats(deleted_at);
+create index if not exists idx_vehicles_deleted_at    on public.vehicles(deleted_at);
+create index if not exists idx_entretiens_deleted_at  on public.entretiens(deleted_at);
+create index if not exists idx_amendes_deleted_at     on public.amendes(deleted_at);
+create index if not exists idx_accessories_deleted_at on public.accessories(deleted_at);
+create index if not exists idx_entretiens_vehicle_id  on public.entretiens(vehicle_id);
+create index if not exists idx_recettes_immat         on public.recettes(immat);
+create index if not exists idx_achats_immat           on public.achats(immat);
+create index if not exists idx_amendes_immat          on public.amendes(immat);
+create index if not exists idx_renta_vehicle        on public.renta_lignes(vehicle_id);
+create index if not exists idx_renta_periode        on public.renta_lignes(annee, mois);
+create index if not exists idx_renta_deleted_at     on public.renta_lignes(deleted_at);
+
+-- Une seule ligne de rentabilité active par véhicule et par mois (les lignes
+-- mises à la corbeille ne bloquent pas une nouvelle saisie du même mois).
+drop index if exists idx_renta_unique_active;
+create unique index idx_renta_unique_active
+  on public.renta_lignes (vehicle_id, annee, mois)
+  where deleted_at is null;
+
+create index if not exists idx_historique_table_row   on public.historique(table_name, row_id);
+create index if not exists idx_historique_created_at  on public.historique(created_at desc);
+
+-- Ligne de paramètres par défaut (id fixe = 1)
+insert into public.params (id, entreprise, siret)
+values (1, 'SBR AUTO', '88938497000014')
+on conflict (id) do nothing;
+
+-- ============================================================================
+-- 3bis) CONTRAINTES D'INTÉGRITÉ SUPPLÉMENTAIRES
+-- ============================================================================
+
+-- Une plaque ne peut être utilisée que par un seul véhicule actif à la fois
+-- (les véhicules mis à la corbeille — deleted_at renseigné — ne comptent pas,
+-- ce qui permet de réutiliser une plaque après suppression définitive).
+drop index if exists idx_vehicles_immat_unique_active;
+create unique index idx_vehicles_immat_unique_active
+  on public.vehicles (immat)
+  where deleted_at is null and immat is not null and immat <> '';
+
+do $$ begin
+  alter table public.recettes   add constraint recettes_montant_positif   check (montant >= 0);
+exception when duplicate_object or duplicate_table then null; end $$;
+do $$ begin
+  alter table public.achats     add constraint achats_montant_positif     check (montant >= 0);
+exception when duplicate_object or duplicate_table then null; end $$;
+do $$ begin
+  alter table public.amendes    add constraint amendes_montant_positif    check (montant >= 0);
+exception when duplicate_object or duplicate_table then null; end $$;
+do $$ begin
+  alter table public.montant_splits add constraint montant_splits_montant_positif check (montant >= 0);
+exception when duplicate_object or duplicate_table then null; end $$;
+
+do $$ begin
+  alter table public.vehicles add constraint vehicles_statut_valide
+    check (statut is null or statut in ('Actif','Inactif','Vendu','En réparation'));
+exception when duplicate_object or duplicate_table then null; end $$;
+do $$ begin
+  alter table public.amendes add constraint amendes_statut_valide
+    check (statut is null or statut in ('En attente','Payée','Contestée'));
+exception when duplicate_object or duplicate_table then null; end $$;
+do $$ begin
+  alter table public.achats add constraint achats_justificatif_valide
+    check (justificatif is null or justificatif in ('Oui','Non'));
+exception when duplicate_object or duplicate_table then null; end $$;
+
+-- Statuts autorisés pour le planning véhicules (inclut "Direct" = location
+-- directe hors plateforme). "drop + recreate" pour couvrir le cas où une
+-- contrainte plus ancienne existe déjà sur la base en production sans
+-- "Direct" dans la liste.
+alter table public.planning_vehicules drop constraint if exists planning_vehicules_statut_check;
+alter table public.planning_vehicules add constraint planning_vehicules_statut_check
+  check (statut is null or statut in ('GA','Turo','Roadstr','Direct','Sinistre'));
+
+create index if not exists idx_planning_vehicules_day on public.planning_vehicules(day);
+create index if not exists idx_planning_sieges_day     on public.planning_sieges(day);
+
+-- ============================================================================
+-- 4) ROW LEVEL SECURITY — accès selon le rôle (admin = tout ; sinon selon
+--    les onglets autorisés dans profiles.allowed_tabs, même logique que
+--    TAB_TABLES côté app)
+-- ============================================================================
+
+alter table public.profiles          enable row level security;
+alter table public.params            enable row level security;
+alter table public.vehicles          enable row level security;
+alter table public.recettes          enable row level security;
+alter table public.achats            enable row level security;
+alter table public.entretiens        enable row level security;
+alter table public.amendes           enable row level security;
+alter table public.accessories       enable row level security;
+alter table public.montant_splits    enable row level security;
+alter table public.renta_lignes      enable row level security;
+alter table public.planning_vehicules enable row level security;
+alter table public.planning_sieges   enable row level security;
+alter table public.historique        enable row level security;
+
+-- Fonction centrale : reproduit TAB_TABLES de l'app (index.html) pour que la
+-- sécurité côté base corresponde à ce que l'app autorise déjà côté écran.
+-- Admin (is_admin = true) => accès total. Sinon => selon les onglets cochés.
+create or replace function public.has_table_access(tbl text)
 returns boolean
 language sql
 security definer
+set search_path = public
 stable
 as $$
-  select exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
-  );
-$$;
-
--- 4) Activation RLS
-alter table public.profiles enable row level security;
-alter table public.missions enable row level security;
-
--- 5) Policies profiles
-create policy "profil visible par soi-meme ou admin"
-  on public.profiles for select
-  using (id = auth.uid() or public.is_admin());
-
-create policy "admin gere les profils"
-  on public.profiles for all
-  using (public.is_admin())
-  with check (public.is_admin());
-
--- Un utilisateur qui vient de s'inscrire peut créer SA propre ligne de
--- profil, uniquement en tant que prestataire, désactivé et en attente
--- de validation — impossible de s'auto-promouvoir admin
-create policy "auto-inscription prestataire"
-  on public.profiles for insert
-  with check (
-    id = auth.uid()
-    and role = 'prestataire'
-    and actif = false
-    and en_attente_validation = true
-  );
-
--- 6) Policies missions
--- Lecture : admin voit tout / prestataire voit les missions dispo dans SA
--- spécialité + les siennes déjà attribuées
-create policy "lecture missions"
-  on public.missions for select
-  using (
-    public.is_admin()
-    or prestataire_id = auth.uid()
-    or (
-      statut = 'disponible'
-      and exists (
-        select 1 from public.profiles p
-        where p.id = auth.uid() and missions.type = any(p.specialites)
-      )
+  select
+    coalesce(
+      (select is_admin from public.profiles where id = auth.uid()),
+      false
     )
-  );
-
--- Création/édition/suppression : admin uniquement
-create policy "admin cree missions"
-  on public.missions for insert
-  with check (public.is_admin());
-
-create policy "admin edite missions"
-  on public.missions for update
-  using (public.is_admin())
-  with check (public.is_admin());
-
-create policy "admin supprime missions"
-  on public.missions for delete
-  using (public.is_admin());
-
--- Acceptation par un prestataire : autorisé UNIQUEMENT à passer
--- une mission "disponible" -> "acceptee" en se l'attribuant à lui-même,
--- et seulement si le type de la mission fait partie de ses spécialités
-create policy "prestataire accepte mission disponible"
-  on public.missions for update
-  using (
-    statut = 'disponible'
-    and exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and missions.type = any(p.specialites)
-    )
-  )
-  with check (
-    prestataire_id = auth.uid()
-    and statut = 'acceptee'
-  );
-
--- Le prestataire peut aussi mettre à jour ses propres missions acceptées
--- (ex: passer en "en_cours" ou "terminee")
-create policy "prestataire avance ses missions"
-  on public.missions for update
-  using (prestataire_id = auth.uid())
-  with check (prestataire_id = auth.uid());
-
--- Le prestataire peut se désister d'une mission acceptée avant de la
--- démarrer : elle redevient disponible pour les autres
-create policy "prestataire se desiste avant demarrage"
-  on public.missions for update
-  using (prestataire_id = auth.uid() and statut = 'acceptee')
-  with check (statut = 'disponible' and prestataire_id is null);
-
--- 7) États des lieux (avant / après mission), remplis par le prestataire
-create table public.etats_lieux (
-  id uuid primary key default gen_random_uuid(),
-  mission_id uuid not null references public.missions(id) on delete cascade,
-  type text not null check (type in ('avant', 'apres')),
-  kilometrage integer,
-  carburant text check (carburant in ('reserve', 'quart', 'moitie', 'trois_quarts', 'plein')),
-  etat_exterieur text,
-  etat_interieur text,
-  commentaire text,
-  photos text[] default '{}',
-  created_by uuid references public.profiles(id),
-  created_at timestamptz not null default now(),
-  unique (mission_id, type)
-);
-
-alter table public.etats_lieux enable row level security;
-
-create policy "lecture etats_lieux"
-  on public.etats_lieux for select
-  using (
-    public.is_admin()
-    or created_by = auth.uid()
     or exists (
-      select 1 from public.missions
-      where missions.id = etats_lieux.mission_id
-      and missions.prestataire_id = auth.uid()
-    )
-  );
-
-create policy "prestataire cree etat_lieux de sa mission"
-  on public.etats_lieux for insert
-  with check (
-    created_by = auth.uid()
-    and exists (
-      select 1 from public.missions
-      where missions.id = mission_id
-      and missions.prestataire_id = auth.uid()
-    )
-  );
-
--- 8) Stockage des photos d'état des lieux
-insert into storage.buckets (id, name, public)
-values ('etats-lieux', 'etats-lieux', true)
-on conflict (id) do nothing;
-
-create policy "lecture publique photos etats-lieux"
-  on storage.objects for select
-  using (bucket_id = 'etats-lieux');
-
-create policy "upload photos etats-lieux par utilisateurs connectes"
-  on storage.objects for insert
-  with check (bucket_id = 'etats-lieux' and auth.uid() is not null);
-
--- 9) Stockage des factures (PDF), déposées par l'admin
-insert into storage.buckets (id, name, public)
-values ('factures', 'factures', true)
-on conflict (id) do nothing;
-
-create policy "lecture publique factures"
-  on storage.objects for select
-  using (bucket_id = 'factures');
-
-create policy "upload factures par admin"
-  on storage.objects for insert
-  with check (bucket_id = 'factures' and public.is_admin());
-
--- 10) Évaluations des prestataires par l'admin (une par mission)
-create table public.evaluations (
-  id uuid primary key default gen_random_uuid(),
-  mission_id uuid not null references public.missions(id) on delete cascade,
-  prestataire_id uuid not null references public.profiles(id) on delete cascade,
-  note integer not null check (note between 1 and 5),
-  commentaire text,
-  created_by uuid references public.profiles(id),
-  created_at timestamptz not null default now(),
-  unique (mission_id)
-);
-
-alter table public.evaluations enable row level security;
-
-create policy "lecture evaluations"
-  on public.evaluations for select
-  using (public.is_admin() or prestataire_id = auth.uid());
-
-create policy "admin gere les evaluations"
-  on public.evaluations for all
-  using (public.is_admin())
-  with check (public.is_admin());
-
--- 11) Stockage des contrats (PDF), générés automatiquement à l'acceptation
-insert into storage.buckets (id, name, public)
-values ('contrats', 'contrats', true)
-on conflict (id) do nothing;
-
-create policy "lecture publique contrats"
-  on storage.objects for select
-  using (bucket_id = 'contrats');
-
-create policy "upload contrats par utilisateurs connectes"
-  on storage.objects for insert
-  with check (bucket_id = 'contrats' and auth.uid() is not null);
-
--- 12) Paramètres de l'entreprise (une seule ligne, id = 1)
-create table public.entreprise_config (
-  id integer primary key default 1,
-  nom text,
-  adresse text,
-  forme_juridique text,
-  siret text,
-  signature_url text,
-  updated_at timestamptz default now()
-);
-
-alter table public.entreprise_config enable row level security;
-
-create policy "lecture entreprise_config"
-  on public.entreprise_config for select
-  using (auth.uid() is not null);
-
-create policy "admin gere entreprise_config"
-  on public.entreprise_config for all
-  using (public.is_admin())
-  with check (public.is_admin());
-
--- 13) Stockage des images de signature (société + prestataires)
-insert into storage.buckets (id, name, public)
-values ('signatures', 'signatures', true)
-on conflict (id) do nothing;
-
-create policy "lecture publique signatures"
-  on storage.objects for select
-  using (bucket_id = 'signatures');
-
-create policy "upload signatures utilisateurs connectes"
-  on storage.objects for insert
-  with check (bucket_id = 'signatures' and auth.uid() is not null);
-
--- 14) Fonction sécurisée : le prestataire signe SON contrat cadre,
--- sans pouvoir toucher aux autres champs de son profil (rôle, actif...)
-create or replace function public.signer_contrat_cadre(p_contrat_url text, p_signature_url text)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  update public.profiles
-  set contrat_url = p_contrat_url,
-      contrat_statut = 'signe',
-      contrat_signature_url = p_signature_url,
-      contrat_signe_le = now()
-  where id = auth.uid() and role = 'prestataire';
-end;
+      select 1
+      from public.profiles p,
+           jsonb_array_elements_text(to_jsonb(p.allowed_tabs)) as tab
+      where p.id = auth.uid()
+        and (
+          (tbl = 'renta_lignes'       and tab in ('rentabilite','dashboard')) or
+          (tbl = 'vehicles'           and tab in ('planningVeh','vehicules','amendes','rentabilite','dashboard')) or
+          (tbl = 'accessories'        and tab in ('planningSiege')) or
+          (tbl = 'amendes'            and tab in ('amendes')) or
+          (tbl = 'planning_vehicules' and tab in ('planningVeh','amendes','rentabilite','dashboard')) or
+          (tbl = 'planning_sieges'    and tab in ('planningSiege')) or
+          (tbl = 'entretiens'         and tab in ('vehicules'))
+        )
+    );
 $$;
 
-grant execute on function public.signer_contrat_cadre(text, text) to authenticated;
+-- Tout le monde authentifié peut lire les paramètres (nécessaires à l'app)
+drop policy if exists "params_read_all" on public.params;
+create policy "params_read_all" on public.params
+  for select to authenticated using (true);
 
--- 16) Documents prestataire (Kbis, assurance pro, CNI, permis) —
--- bucket PRIVÉ, jamais public (pièces d'identité)
-insert into storage.buckets (id, name, public)
-values ('documents', 'documents', false)
-on conflict (id) do nothing;
+drop policy if exists "params_write_admin" on public.params;
+create policy "params_write_admin" on public.params
+  for update to authenticated
+  using (coalesce((select is_admin from public.profiles where id = auth.uid()), false))
+  with check (coalesce((select is_admin from public.profiles where id = auth.uid()), false));
 
-create policy "upload documents proprietaire"
-  on storage.objects for insert
-  with check (
-    bucket_id = 'documents'
-    and (storage.foldername(name))[1] = auth.uid()::text
-  );
-
-create policy "lecture documents proprietaire ou admin"
-  on storage.objects for select
-  using (
-    bucket_id = 'documents'
-    and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
-  );
-
-create or replace function public.update_mes_documents_prestataire(
-  p_nom_societe text,
-  p_site_web text,
-  p_doc_kbis_path text,
-  p_doc_assurance_path text,
-  p_doc_cni_path text,
-  p_doc_permis_path text
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
+-- Tables métier : accès selon has_table_access()
+do $$
+declare
+  t text;
 begin
-  update public.profiles
-  set nom_societe = p_nom_societe,
-      site_web = p_site_web,
-      doc_kbis_path = coalesce(p_doc_kbis_path, doc_kbis_path),
-      doc_assurance_path = coalesce(p_doc_assurance_path, doc_assurance_path),
-      doc_cni_path = coalesce(p_doc_cni_path, doc_cni_path),
-      doc_permis_path = coalesce(p_doc_permis_path, doc_permis_path)
-  where id = auth.uid() and role = 'prestataire';
-end;
-$$;
+  foreach t in array array['vehicles','renta_lignes','entretiens','amendes',
+                            'accessories','planning_vehicules','planning_sieges']
+  loop
+    execute format('drop policy if exists "role_based_access_%1$s" on public.%1$s', t);
+    execute format(
+      'create policy "role_based_access_%1$s" on public.%1$s for all to authenticated using (public.has_table_access(%2$L)) with check (public.has_table_access(%2$L))',
+      t, t
+    );
+  end loop;
+end $$;
 
-grant execute on function public.update_mes_documents_prestataire(text, text, text, text, text, text) to authenticated;
+-- historique : lecture réservée aux admins, mais tout le monde peut y écrire
+-- (l'app journalise les actions de chaque utilisateur, y compris non-admin).
+drop policy if exists "historique_select_admin" on public.historique;
+create policy "historique_select_admin" on public.historique
+  for select to authenticated
+  using (coalesce((select is_admin from public.profiles where id = auth.uid()), false));
 
--- 15) Trigger qui tient à jour les compteurs de fiabilité des prestataires
--- (acceptées / désistées / annulées) à chaque changement de statut
-create or replace function public.track_mission_stats()
+drop policy if exists "historique_insert_all" on public.historique;
+create policy "historique_insert_all" on public.historique
+  for insert to authenticated with check (true);
+
+-- profiles : chacun peut lire tous les profils (utile pour afficher qui a
+-- fait quoi) mais ne peut modifier que le sien. La gestion des rôles
+-- (is_admin / allowed_tabs) se fait depuis le Dashboard Supabase (clé
+-- service_role, qui contourne RLS), pas depuis l'app elle-même.
+drop policy if exists "profiles_self_select" on public.profiles;
+create policy "profiles_self_select" on public.profiles
+  for select to authenticated using (true);
+
+drop policy if exists "profiles_self_update" on public.profiles;
+create policy "profiles_self_update" on public.profiles
+  for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
+
+-- Verrou anti-élévation de privilèges : un utilisateur non-admin qui modifie
+-- sa propre ligne (ex: son nom) ne peut pas s'auto-attribuer is_admin,
+-- allowed_tabs ou role_label au passage. Seul un admin (ou le Dashboard
+-- Supabase via service_role) peut changer les droits de quelqu'un.
+create or replace function public.protect_profile_privileges()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  if TG_OP = 'UPDATE' and OLD.statut = 'disponible' and NEW.statut = 'acceptee' and NEW.prestataire_id is not null then
-    update public.profiles set missions_acceptees_total = missions_acceptees_total + 1 where id = NEW.prestataire_id;
+  if not coalesce((select is_admin from public.profiles where id = auth.uid()), false) then
+    new.is_admin := old.is_admin;
+    new.allowed_tabs := old.allowed_tabs;
+    new.role_label := old.role_label;
   end if;
-
-  if TG_OP = 'UPDATE' and OLD.statut = 'acceptee' and NEW.statut = 'disponible' and OLD.prestataire_id is not null then
-    update public.profiles set missions_desistees_total = missions_desistees_total + 1 where id = OLD.prestataire_id;
-  end if;
-
-  if TG_OP = 'UPDATE' and NEW.statut = 'annulee' and OLD.statut in ('acceptee', 'en_cours') and OLD.prestataire_id is not null then
-    update public.profiles set missions_annulees_total = missions_annulees_total + 1 where id = OLD.prestataire_id;
-  end if;
-
-  return NEW;
+  return new;
 end;
 $$;
 
-create trigger missions_stats_trigger
-  after update on public.missions
-  for each row execute function public.track_mission_stats();
+drop trigger if exists protect_profile_privileges_trigger on public.profiles;
+create trigger protect_profile_privileges_trigger
+  before update on public.profiles
+  for each row execute function public.protect_profile_privileges();
 
--- 17) Résultats de vérification IA des documents prestataire
-create table public.document_verifications (
-  id uuid primary key default gen_random_uuid(),
-  prestataire_id uuid not null references public.profiles(id) on delete cascade,
-  doc_type text not null check (doc_type in ('kbis', 'assurance', 'cni', 'permis')),
-  statut text not null default 'a_verifier' check (statut in ('conforme', 'a_verifier', 'suspect')),
-  commentaire text,
-  verifie_le timestamptz not null default now(),
-  unique (prestataire_id, doc_type)
-);
+-- ============================================================================
+-- 5) CRÉATION AUTOMATIQUE DU PROFIL À L'INSCRIPTION
+-- ============================================================================
 
-alter table public.document_verifications enable row level security;
-
-create policy "lecture document_verifications"
-  on public.document_verifications for select
-  using (public.is_admin() or prestataire_id = auth.uid());
-
-create policy "service role ecrit document_verifications"
-  on public.document_verifications for all
-  using (auth.role() = 'service_role')
-  with check (auth.role() = 'service_role');
-
--- 18) Ajouts migration v13 : RGPD, expiration assurance, push,
--- historique contrats, suivi + signature client public
--- 1) Consentement RGPD à l'inscription
-alter table public.profiles
-  add column if not exists rgpd_consentement boolean not null default false,
-  add column if not exists rgpd_consentement_le timestamptz;
-
--- 2) Date de validité de l'assurance pro (pour l'alerte d'expiration)
-alter table public.profiles
-  add column if not exists assurance_validite_le date;
-
--- La fonction update_mes_documents_prestataire (migration v10) doit
--- accepter ce nouveau champ : on la supprime et la recrée avec le
--- paramètre en plus
-drop function if exists public.update_mes_documents_prestataire(text, text, text, text, text, text);
-create or replace function public.update_mes_documents_prestataire(
-  p_nom_societe text,
-  p_site_web text,
-  p_doc_kbis_path text,
-  p_doc_assurance_path text,
-  p_doc_cni_path text,
-  p_doc_permis_path text,
-  p_assurance_validite_le date default null
-)
-returns void
+create or replace function public.handle_new_user()
+returns trigger
 language plpgsql
-security definer
-set search_path = public
+security definer set search_path = public
 as $$
 begin
-  update public.profiles
-  set nom_societe = p_nom_societe,
-      site_web = p_site_web,
-      doc_kbis_path = coalesce(p_doc_kbis_path, doc_kbis_path),
-      doc_assurance_path = coalesce(p_doc_assurance_path, doc_assurance_path),
-      doc_cni_path = coalesce(p_doc_cni_path, doc_cni_path),
-      doc_permis_path = coalesce(p_doc_permis_path, doc_permis_path),
-      assurance_validite_le = coalesce(p_assurance_validite_le, assurance_validite_le)
-  where id = auth.uid() and role = 'prestataire';
+  insert into public.profiles (id, email, is_admin)
+  values (new.id, new.email, true)
+  on conflict (id) do nothing;
+  return new;
 end;
 $$;
 
-grant execute on function public.update_mes_documents_prestataire(text, text, text, text, text, text, date) to authenticated;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
 
--- 3) Notifications push (web push standard, sans dépendance propriétaire)
+-- ============================================================================
+-- 6) STOCKAGE (bucket privé pour les justificatifs / documents véhicules)
+-- ============================================================================
+
+insert into storage.buckets (id, name, public)
+values ('justificatifs', 'justificatifs', false)
+on conflict (id) do nothing;
+
+drop policy if exists "justificatifs_authenticated_all" on storage.objects;
+create policy "justificatifs_authenticated_all" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'justificatifs')
+  with check (bucket_id = 'justificatifs');
+
+-- ============================================================================
+-- 7) NOTIFICATIONS PUSH (alertes en temps réel sur téléphone)
+-- ============================================================================
+-- Chaque utilisateur (profil) peut activer les notifications sur ses propres
+-- appareils. Utilisé par les fonctions Edge send-push et daily-alerts.
 create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
   endpoint text not null unique,
   p256dh text not null,
   auth text not null,
   created_at timestamptz not null default now()
 );
-
 alter table public.push_subscriptions enable row level security;
+drop policy if exists push_subscriptions_own on public.push_subscriptions;
+create policy push_subscriptions_own on public.push_subscriptions
+  for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
 
-drop policy if exists "gestion de ses propres abonnements push" on public.push_subscriptions;
-create policy "gestion de ses propres abonnements push"
-  on public.push_subscriptions for all
-  using (user_id = auth.uid() or public.is_admin())
-  with check (user_id = auth.uid());
+-- Alerte quotidienne automatique (CT, assurance, entretien, amendes) : une
+-- notification résumé envoyée chaque matin à 7h à tous les appareils abonnés.
+-- Nécessite les extensions pg_cron et pg_net (activées par défaut sur la
+-- plupart des projets Supabase ; sinon : Database → Extensions → les activer
+-- avant d'exécuter ce bloc).
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
 
--- 4) Historique des versions de contrat cadre (au lieu d'écraser à chaque fois)
-create table if not exists public.contrats_historique (
-  id uuid primary key default gen_random_uuid(),
-  prestataire_id uuid not null references public.profiles(id) on delete cascade,
-  contrat_url text not null,
-  statut text not null,
-  cree_le timestamptz not null default now()
+do $$
+begin
+  perform cron.unschedule('sbrauto-daily-alerts');
+exception when others then null;
+end $$;
+
+select cron.schedule(
+  'sbrauto-daily-alerts',
+  '0 7 * * *',
+  $cron$
+  select net.http_post(
+    url := 'https://wpecxfxyfnvmzxkclhqc.supabase.co/functions/v1/daily-alerts',
+    headers := '{"Content-Type": "application/json"}'::jsonb
+  );
+  $cron$
 );
 
-alter table public.contrats_historique enable row level security;
-
-drop policy if exists "lecture contrats_historique" on public.contrats_historique;
-create policy "lecture contrats_historique"
-  on public.contrats_historique for select
-  using (public.is_admin() or prestataire_id = auth.uid());
-
-drop policy if exists "ecriture contrats_historique" on public.contrats_historique;
-create policy "ecriture contrats_historique"
-  on public.contrats_historique for insert
-  with check (prestataire_id = auth.uid() or public.is_admin());
-
--- 5) Suivi + signature client public par mission (sans compte)
-alter table public.missions
-  add column if not exists suivi_token uuid not null default gen_random_uuid(),
-  add column if not exists client_signature_url text,
-  add column if not exists client_nom_signataire text,
-  add column if not exists client_signe_le timestamptz;
-
--- Un visiteur anonyme ne doit JAMAIS pouvoir lister les missions. On passe
--- donc par une fonction dédiée plutôt que par une policy SELECT publique
--- (une policy ne peut pas restreindre "uniquement si le bon jeton est
--- fourni" — elle s'applique à toute lecture, y compris un listing complet
--- via l'API si elle était mal écrite). Cette fonction ne renvoie qu'UNE
--- mission, et seulement les colonnes utiles au suivi/à la signature —
--- jamais le prix, les coordonnées internes ou les autres missions.
-create or replace function public.get_mission_pour_suivi(p_suivi_token uuid)
-returns table (
-  id uuid,
-  type text,
-  titre text,
-  vehicule text,
-  lieu_depart text,
-  lieu_arrivee text,
-  date_prevue timestamptz,
-  date_arrivee_prevue timestamptz,
-  statut text,
-  prestataire_nom text,
-  client_signe_le timestamptz
-)
-language sql
-security definer
-set search_path = public
-stable
-as $$
-  select m.id, m.type, m.titre, m.vehicule, m.lieu_depart, m.lieu_arrivee,
-         m.date_prevue, m.date_arrivee_prevue, m.statut,
-         p.nom as prestataire_nom, m.client_signe_le
-  from public.missions m
-  left join public.profiles p on p.id = m.prestataire_id
-  where m.suivi_token = p_suivi_token;
-$$;
-
-grant execute on function public.get_mission_pour_suivi(uuid) to anon, authenticated;
-
--- Fonction sécurisée : le client signe à la livraison (aucune authentification,
--- mais restreinte à UNE mission désignée par son jeton, et seulement si elle
--- n'est pas déjà signée)
-create or replace function public.signer_mission_client(
-  p_suivi_token uuid,
-  p_signature_url text,
-  p_nom_signataire text
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  update public.missions
-  set client_signature_url = p_signature_url,
-      client_nom_signataire = p_nom_signataire,
-      client_signe_le = now()
-  where suivi_token = p_suivi_token
-    and client_signe_le is null;
-end;
-$$;
-
-grant execute on function public.signer_mission_client(uuid, text, text) to anon, authenticated;
-
--- Autorise en plus l'upload SANS authentification, mais uniquement dans
--- un dossier dédié "client-signatures/" (le client final n'a pas de
--- compte) — n'affecte pas la policy existante pour les utilisateurs
--- connectés, qui reste inchangée
-drop policy if exists "upload signature client sans authentification" on storage.objects;
-create policy "upload signature client sans authentification"
-  on storage.objects for insert
-  with check (bucket_id = 'signatures' and (storage.foldername(name))[1] = 'client-signatures');
-
--- ============================================================
--- Création des comptes prestataires :
--- Se fait manuellement depuis le Dashboard Supabase
--- (Authentication > Users > Add user), puis insérer la ligne
--- correspondante dans "profiles" avec role = 'prestataire'.
--- Idem pour ton propre compte admin, avec role = 'admin'.
--- Ensuite, va dans admin.html > "Prestataires" pour cocher les
--- spécialités de chaque prestataire (convoyage/nettoyage/inspection/
--- autre) : un prestataire ne voit que les missions disponibles dans
--- ses spécialités.
--- Va aussi dans admin.html > "Paramètres entreprise" pour renseigner
--- le nom, l'adresse et la signature de ta société (nécessaire pour
--- générer les contrats).
--- ============================================================
+-- ============================================================================
+-- Fin — tout est prêt.
+-- ============================================================================
