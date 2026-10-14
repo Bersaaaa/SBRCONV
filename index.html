@@ -90,7 +90,6 @@
     --gold-bright:#8290ff;
   }
   html[data-theme="dark"] .day-row.ga{background:#166534;border-color:#166534;}
-  html[data-theme="dark"] .day-row.roadstr{background:#c2410c;border-color:#c2410c;}
   html[data-theme="dark"] .day-row.sinistre{background:#991b1b;border-color:#991b1b;}
   html[data-theme="dark"] tr:hover td{background:#1c2029;}
   html[data-theme="dark"] .search-box{background:var(--card);}
@@ -145,6 +144,7 @@
   .nav-subitems{max-height:0;overflow:hidden;transition:max-height .22s ease;}
   .nav-subitems.open{max-height:700px;}
   .nav-subitems button{padding-left:23px;}
+  .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:9px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0;}
 
   .user-row{display:flex;align-items:center;gap:9px;padding:14px 16px;border-top:1px solid var(--border);cursor:pointer;}
   .user-row .av{width:30px;height:30px;border-radius:8px;background:var(--border-2);color:var(--text);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;letter-spacing:0.5px;flex:0 0 auto;}
@@ -333,6 +333,11 @@
   .ov-tile .ov-label{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
   .ov-tile .ov-value{font-size:21px;font-weight:800;color:var(--text);letter-spacing:-.3px;word-break:break-word;}
   .ov-tile .ov-sub{font-size:11px;color:var(--muted);margin-top:4px;}
+  .ov-section-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:6px;}
+  .ov-hero{background:linear-gradient(135deg,var(--primary-light),var(--card));border:1px solid var(--border);border-radius:18px;padding:20px 22px;margin-bottom:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px;}
+  .ov-hero .ov-hero-item .ov-hero-label{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+  .ov-hero .ov-hero-item .ov-hero-value{font-size:25px;font-weight:800;letter-spacing:-.4px;}
+  .ov-hero .ov-hero-item .ov-hero-sub{font-size:11.5px;color:var(--muted);margin-top:4px;}
   .kpi2{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
   .kpi2 .kpi2-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .kpi2 .label{font-size:13px;font-weight:600;color:var(--text);}
@@ -425,7 +430,6 @@
   .daycell{width:100%;height:26px;cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--muted-2);}
   .daycell.ga{background:var(--green);color:#fff;}
   .daycell.turo{background:var(--primary);color:#fff;}
-  .daycell.roadstr{background:#ea580c;color:#fff;}
   .daycell.sinistre{background:#7f1d1d;color:#fff;}
   .daycell.empty{background:transparent;}
   .daycell:hover{outline:2px solid var(--primary-soft);}
@@ -468,8 +472,6 @@
   .day-row.ga .day-dow{color:rgba(255,255,255,.75);}
   .day-row.turo{background:var(--primary);border-color:var(--primary);color:#fff;}
   .day-row.turo .day-dow{color:rgba(255,255,255,.75);}
-  .day-row.roadstr{background:#ea580c;border-color:#ea580c;color:#fff;}
-  .day-row.roadstr .day-dow{color:rgba(255,255,255,.75);}
   .day-row.direct .day-dow{color:rgba(255,255,255,.75);}
   .day-row.sinistre{background:#7f1d1d;border-color:#7f1d1d;color:#fff;}
   .day-row.sinistre .day-dow{color:rgba(255,255,255,.75);}
@@ -582,46 +584,37 @@
 
 
 /* ============================================================
-   SBR COMPTA — styles intégrés, tous scopés sous #comptaRoot pour ne
-   jamais entrer en collision avec le thème clair de SBR AUTO (même
-   si quelques noms de variables/classes sont identiques, ex: --border,
-   --muted, --red, .card).
+   SBR COMPTA — styles intégrés, tous scopés sous #comptaRoot. Aucune
+   couleur propre : tout hérite des variables :root / html[data-theme="dark"]
+   de SBR AUTO, pour que Compta ait EXACTEMENT le même thème clair/sombre
+   que le reste de l'appli (et change avec lui quand on bascule le mode).
+   La barre d'onglets horizontale et l'en-tête "SBR COMPTA" d'origine ont
+   été retirées : la navigation se fait uniquement via la sidebar / barre
+   mobile de SBR AUTO (section "Compta"), comme pour tous les autres onglets.
    ============================================================ */
 #comptaRoot{
-    /* Thème aligné sur SBR AUTO (clair). --border/--text/--muted/--red/--amber/--radius
-       ne sont volontairement PAS redéfinies ici : elles héritent telles quelles des
-       variables :root de SBR AUTO, pour que les deux volets se ressemblent exactement.
-       Seuls les noms propres à SBR COMPTA (sans équivalent chez SBR AUTO) sont fixés. */
-    --bg: var(--page); --bg2:#ffffff; --panel: var(--card); --panel2:#f1f2f5; --panel3:#eef0f3;
+    /* Alias purement nominaux vers les variables de SBR AUTO — aucune valeur
+       fixe ici, donc le clair/sombre s'applique automatiquement. */
+    --bg: var(--page); --panel: var(--card); --panel2: var(--page); --panel3: var(--primary-light);
     --accent: var(--primary); --accent-dim: var(--primary-hover); --accent2: var(--green);
     --violet:#7c5cff; --radius-sm:10px;
     --shadow: 0 1px 3px rgba(16,24,40,.06);
   }
+html[data-theme="dark"] #comptaRoot{ --shadow: 0 1px 3px rgba(0,0,0,.3); }
 #comptaRoot *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-#comptaRoot{color-scheme:light;}
-#comptaRoot{margin:0;background:var(--bg);
-    color:var(--text);font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    -webkit-font-smoothing:antialiased;min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
-#comptaRoot header{padding:max(16px,env(safe-area-inset-top)) 14px 0;position:sticky;top:0;z-index:10;
-    background:linear-gradient(180deg, var(--bg) 78%, transparent);backdrop-filter:blur(6px);}
+#comptaRoot{background:transparent;color:var(--text);font-family:inherit;}
+html[data-theme="dark"] #comptaRoot input[type="date"]{color-scheme:dark;}
 #comptaRoot .brand{display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;}
 #comptaRoot .logo{width:32px;height:32px;border-radius:9px;overflow:hidden;flex-shrink:0;box-shadow:0 4px 14px -2px rgba(68,87,230,.35);}
 #comptaRoot .logo img{width:100%;height:100%;object-fit:cover;display:block;}
-#comptaRoot h1{font-family:'Space Grotesk',sans-serif;font-size:17px;margin:0;letter-spacing:.2px;font-weight:700;}
-#comptaRoot .brand-spacer{flex:1;}
 #comptaRoot .sub{color:var(--muted);font-size:11.5px;margin:4px 0 12px;}
-#comptaRoot nav{display:flex;gap:5px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
-#comptaRoot nav::-webkit-scrollbar{display:none;}
-#comptaRoot nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:7px 12px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:.15s;flex-shrink:0;}
-#comptaRoot nav button.active{background:var(--panel3);color:var(--text);border-color:var(--border);box-shadow:var(--shadow);}
-#comptaRoot main{padding:6px 14px 100px;max-width:900px;margin:0 auto;}
-#comptaRoot .card{background:linear-gradient(180deg, var(--panel), var(--bg2));border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden;}
+#comptaRoot .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
 #comptaRoot .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 #comptaRoot .kpi{background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;min-width:0;}
 #comptaRoot .kpi .label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
-#comptaRoot .kpi .val{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;margin-top:5px;word-break:break-word;}
-#comptaRoot .kpi.big{grid-column:1/-1;background:linear-gradient(135deg, rgba(79,178,255,.12), rgba(47,211,152,.08));border-color:var(--accent-dim);}
-#comptaRoot .pos{color:var(--accent2);}
+#comptaRoot .kpi .val{font-size:19px;font-weight:700;margin-top:5px;word-break:break-word;}
+#comptaRoot .kpi.big{grid-column:1/-1;background:var(--primary-light);border-color:var(--primary-soft);}
+#comptaRoot .pos{color:var(--green);}
 #comptaRoot .neg{color:var(--red);}
 #comptaRoot .info{color:var(--violet);}
 #comptaRoot table{width:100%;border-collapse:collapse;font-size:12.5px;}
@@ -639,45 +632,44 @@
 #comptaRoot a.btn{display:inline-block;box-sizing:border-box;text-decoration:none;text-align:center;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:10px 11px;font-size:14px;font-family:inherit;cursor:pointer;font-weight:700;width:auto;}
 #comptaRoot .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
 #comptaRoot .btn-row .btn{flex:1;min-width:150px;}
-#comptaRoot .btn-accent{background:linear-gradient(135deg,var(--accent),#3e8fd6);border-color:transparent;color:#04121f;}
-#comptaRoot .btn-green{background:linear-gradient(135deg,var(--accent2),#1fae82);border-color:transparent;color:#04150f;}
-#comptaRoot .btn-violet{background:linear-gradient(135deg,var(--violet),#8f74e8);border-color:transparent;color:#150a26;}
+#comptaRoot .btn-accent{background:var(--primary);border-color:transparent;color:#fff;}
+#comptaRoot .btn-green{background:var(--green);border-color:transparent;color:#04150f;}
+#comptaRoot .btn-violet{background:var(--violet);border-color:transparent;color:#fff;}
 #comptaRoot .btn-ghost{background:transparent;font-weight:600;}
 #comptaRoot .btn-ghost:hover{background:var(--panel2);}
 #comptaRoot .btn-danger{background:transparent;border-color:var(--red);color:var(--red);}
 #comptaRoot .btn-block{width:100%;margin-top:10px;padding:12px;}
 #comptaRoot .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:.2px;}
-#comptaRoot .pill-paye{background:rgba(47,211,152,.15);color:var(--accent2);}
-#comptaRoot .pill-attente{background:rgba(255,194,102,.15);color:var(--amber);}
-#comptaRoot .pill-retard{background:rgba(255,107,107,.15);color:var(--red);}
+#comptaRoot .pill-paye{background:var(--green-bg);color:var(--green);}
+#comptaRoot .pill-attente{background:var(--amber-bg);color:var(--amber);}
+#comptaRoot .pill-retard{background:var(--red-bg);color:var(--red);}
 #comptaRoot .tag{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 6px;margin:3px 4px 0 0;display:inline-block;}
-#comptaRoot .section-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+#comptaRoot .section-title{font-size:14.5px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;color:var(--text);}
 #comptaRoot .muted{color:var(--muted);}
 #comptaRoot .dropzone{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:26px 14px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;transition:.15s;}
 #comptaRoot .dropzone:hover{border-color:var(--accent-dim);color:var(--text);}
-#comptaRoot .dropzone.drag{border-color:var(--accent);color:var(--accent);background:rgba(79,178,255,.06);}
-#comptaRoot .toast{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--panel3);border:1px solid var(--border);padding:10px 18px;border-radius:12px;font-size:13px;z-index:50;box-shadow:var(--shadow);max-width:90vw;text-align:center;}
+#comptaRoot .dropzone.drag{border-color:var(--accent);color:var(--accent);background:var(--primary-light);}
+#comptaRoot .toast{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:10px 18px;border-radius:12px;font-size:13px;z-index:50;box-shadow:0 10px 30px -12px rgba(0,0,0,.3);max-width:90vw;text-align:center;color:var(--text);}
 #comptaRoot .actions{display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:flex-end;}
 #comptaRoot .actions button{padding:6px 8px;font-size:14px;}
 #comptaRoot .empty{color:var(--muted);font-size:13px;text-align:center;padding:26px 0;}
 #comptaRoot .tabsmall{display:flex;gap:6px;margin-bottom:12px;background:var(--panel2);padding:4px;border-radius:var(--radius-sm);}
 #comptaRoot .tabsmall button{flex:1;border:none;background:transparent;color:var(--text);opacity:.55;width:auto;}
-#comptaRoot .tabsmall button.btn-accent{color:#04121f;}
+#comptaRoot .tabsmall button.btn-accent{color:#fff;opacity:1;}
 #comptaRoot .scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 #comptaRoot .scrollx table{min-width:100%;table-layout:auto;}
 #comptaRoot .scrollx th, #comptaRoot .scrollx td{padding-right:12px;}
 #comptaRoot .scrollx th:last-child, #comptaRoot .scrollx td:last-child{padding-right:4px;}
 #comptaRoot td.num, #comptaRoot th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
 #comptaRoot .nowrap{white-space:nowrap;}
-#comptaRoot /* --- Lignes d'écriture : mise en page flex, #comptaRoot la date et le montant ne peuvent plus se chevaucher --- */
-  .txlist{display:flex;flex-direction:column;gap:8px;}
+#comptaRoot .txlist{display:flex;flex-direction:column;gap:8px;}
 #comptaRoot .txrow{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--border);
     border-radius:12px;background:var(--panel2);}
 #comptaRoot .txrow .tx-check{margin-top:3px;}
 #comptaRoot .tx-main{flex:1;min-width:0;}
 #comptaRoot .tx-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
 #comptaRoot .tx-date{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.3px;white-space:nowrap;}
-#comptaRoot .tx-amt{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;white-space:nowrap;
+#comptaRoot .tx-amt{font-size:15px;font-weight:700;white-space:nowrap;
     text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;}
 #comptaRoot .tx-lib{font-size:13.5px;font-weight:600;line-height:1.35;margin-top:3px;overflow-wrap:anywhere;}
 #comptaRoot .tx-top input{flex:1 1 auto;min-width:0;}
@@ -690,17 +682,15 @@
 #comptaRoot .tx-fields{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
 #comptaRoot .tx-fields>div{flex:1 1 130px;min-width:0;}
 #comptaRoot .tx-fields label{margin-top:0;}
-#comptaRoot /* --- Sections repliables --- */
-  .acc-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;width:100%;
+#comptaRoot .acc-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;width:100%;
     background:transparent;border:none;color:var(--text);padding:0;text-align:left;font-family:inherit;}
 #comptaRoot .acc-chev{font-size:11px;color:var(--muted);transition:transform .18s;flex-shrink:0;}
 #comptaRoot .acc-chev.open{transform:rotate(90deg);}
 #comptaRoot .acc-count{font-size:11px;color:var(--muted);font-weight:600;}
-#comptaRoot /* --- Visionneuse de documents (évite la feuille de téléchargement iOS) --- */
-  .viewer{position:fixed;inset:0;z-index:100;background:rgba(6,9,14,.94);display:flex;flex-direction:column;
+#comptaRoot .viewer{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.75);display:flex;flex-direction:column;
     padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));}
 #comptaRoot .viewer-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-#comptaRoot .viewer-bar .vtitle{flex:1;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#comptaRoot .viewer-bar .vtitle{flex:1;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;}
 #comptaRoot .viewer-bar button{width:auto;padding:8px 12px;font-size:13px;}
 #comptaRoot .viewer-body{flex:1;border-radius:12px;overflow:auto;background:#fff;display:flex;align-items:center;justify-content:center;}
 #comptaRoot .viewer-body iframe{width:100%;height:100%;border:none;background:#fff;}
@@ -718,35 +708,30 @@
 @keyframes sp{to{transform:rotate(360deg);}}
 #comptaRoot .divider{height:1px;background:var(--border);margin:12px 0;}
 #comptaRoot .receipt-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;white-space:nowrap;}
-#comptaRoot .receipt-chip.has{border-color:var(--accent2);color:var(--accent2);}
+#comptaRoot .receipt-chip.has{border-color:var(--green);color:var(--green);}
 #comptaRoot .qwrap{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;-webkit-overflow-scrolling:touch;}
 #comptaRoot .qchip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
 #comptaRoot .qchip:hover{border-color:var(--accent-dim);}
 #comptaRoot .searchbar{margin-bottom:10px;}
 #comptaRoot .bell-wrap{position:relative;}
-#comptaRoot .bell-btn{background:transparent;border:none;font-size:18px;cursor:pointer;position:relative;padding:4px;}
+#comptaRoot .bell-btn{background:transparent;border:none;font-size:18px;cursor:pointer;position:relative;padding:4px;color:var(--text);}
 #comptaRoot .bell-badge{position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;font-size:9px;font-weight:800;border-radius:10px;min-width:15px;height:15px;display:flex;align-items:center;justify-content:center;padding:0 3px;}
-#comptaRoot .notif-panel{position:absolute;top:34px;right:0;width:min(290px,80vw);max-height:360px;overflow-y:auto;background:var(--panel3);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);z-index:30;padding:6px;}
+#comptaRoot .notif-panel{position:absolute;top:34px;right:0;width:min(290px,80vw);max-height:360px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:0 10px 30px -12px rgba(0,0,0,.3);z-index:30;padding:6px;}
 #comptaRoot .notif-item{padding:9px;border-radius:8px;font-size:12px;border-bottom:1px solid var(--border);}
 #comptaRoot .notif-item:last-child{border-bottom:none;}
-#comptaRoot .notif-item.unread{background:rgba(79,178,255,.06);}
+#comptaRoot .notif-item.unread{background:var(--primary-light);}
 #comptaRoot .notif-item b{display:block;margin-bottom:2px;}
-#comptaRoot .auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
-#comptaRoot .auth-card{max-width:360px;width:100%;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);}
-#comptaRoot .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);flex-shrink:0;}
+#comptaRoot .sync-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;}
 #comptaRoot .taglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
 #comptaRoot .tagchip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:6px;}
 #comptaRoot .tagchip button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0;width:auto;}
 @media (max-width: 420px){
-#comptaRoot main{padding:4px 10px 100px;}
 #comptaRoot .card{padding:13px;border-radius:12px;}
 #comptaRoot .kpi .val{font-size:17px;}
-#comptaRoot nav button{padding:6px 10px;font-size:11.5px;}
 #comptaRoot .grid2{gap:7px;}
-#comptaRoot h1{font-size:15px;}
 #comptaRoot .actions{justify-content:flex-start;width:100%;}
-#comptaRoot /* les champs natifs iOS (surtout les dates) refusent de rétrécir : on empile */
-    .row{flex-direction:column;}
+/* les champs natifs iOS (surtout les dates) refusent de rétrécir : on empile */
+#comptaRoot .row{flex-direction:column;}
 #comptaRoot .row>*{width:100%;flex:1 1 auto;}
 #comptaRoot .tx-fields>div{flex:1 1 100%;}
 }
@@ -816,17 +801,16 @@
     <div id="main">
       <div id="content"></div>
       <div id="comptaRoot" style="display:none;">
-        <header style="padding:10px 0 0;">
-          <div class="brand" style="padding:0 2px;">
+        <div class="page-head">
+          <div><h1 id="comptaPageTitle">Compta</h1><div class="page-sub" id="comptaPageSub"></div></div>
+          <div class="head-controls">
             <span class="sync-dot" id="syncDot" style="display:none" title="Synchronisé"></span>
             <div class="bell-wrap" id="bellWrap" style="display:none">
               <button class="bell-btn" id="bellBtn">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
             </div>
-            <div class="brand-spacer"></div>
             <button class="bell-btn" id="comptaTrashBtn" title="Corbeille Compta" aria-label="Corbeille Compta">🗑️<span class="bell-badge" id="comptaTrashBadge" style="display:none">0</span></button>
           </div>
-          <nav id="comptaNav"></nav>
-        </header>
+        </div>
         <main id="comptaMain"></main>
         <div id="toastHost"></div>
       </div>
@@ -1118,7 +1102,7 @@ function flashSaved(msg, type){
 }
 
 /* ============================= MAPPING DB <-> ETAT ============================= */
-function vehFromDb(r){ return {id:r.id, nom:r.nom, immat:r.immat, annee:r.annee, energie:r.energie, critair:r.critair, km:r.km, valeurAchat:r.valeur_achat, valeurActuelle:r.valeur_actuelle, prochainCT:r.prochain_ct, prochaineAssurance:r.prochaine_assurance, prochainEntretienKm:r.prochain_entretien_km, statut:r.statut, notes:r.notes, kmUpdatedAt:r.km_updated_at, carte_grise_url:r.carte_grise_url, assurance_url:r.assurance_url, autorisation_url:r.autorisation_url, marque:r.marque, vin:r.vin, proprietaire_nom:r.proprietaire_nom, proprietaire_naissance:r.proprietaire_naissance, proprietaire_adresse:r.proprietaire_adresse, deleted_at:r.deleted_at}; }
+function vehFromDb(r){ return {id:r.id, nom:r.nom, immat:r.immat, annee:r.annee, energie:r.energie, critair:r.critair, km:r.km, valeurAchat:r.valeur_achat, valeurActuelle:r.valeur_actuelle, prochainCT:r.prochain_ct, prochaineAssurance:r.prochaine_assurance, prochainEntretienKm:r.prochain_entretien_km, statut:r.statut, notes:r.notes, kmUpdatedAt:r.km_updated_at, carte_grise_url:r.carte_grise_url, assurance_url:r.assurance_url, marque:r.marque, vin:r.vin, deleted_at:r.deleted_at}; }
 function vehKeyToDb(key){ return {valeurAchat:'valeur_achat', valeurActuelle:'valeur_actuelle', prochainCT:'prochain_ct', prochaineAssurance:'prochaine_assurance', prochainEntretienKm:'prochain_entretien_km', kmUpdatedAt:'km_updated_at'}[key] || key; }
 function paramsFromDb(r){ return {entreprise:r.entreprise, siret:r.siret, statut:r.statut, ville:r.ville, adresse:r.adresse, seuilEntretienKm:r.seuil_entretien_km, dateDebutActivite:r.date_debut_activite}; }
 function paramsKeyToDb(key){ return {seuilEntretienKm:'seuil_entretien_km', dateDebutActivite:'date_debut_activite'}[key] || key; }
@@ -1799,6 +1783,15 @@ function toggleNavGroup(label, forceOpen){
   navOpenGroups[label] = willOpen;
   renderTabs();
 }
+/* Petit badge numérique optionnel à droite d'un item de la sidebar —
+   aujourd'hui seulement pour "À vérifier" (Compta), défensif tant que
+   le module Compta n'a pas encore chargé ses données. */
+function navBadgeFor(tabId){
+  if(tabId==='cpt_verif' && typeof DATA!=='undefined' && DATA && Array.isArray(DATA.transactions)){
+    try{ const n = countAVerifier(); if(n>0) return `<span class="nav-badge">${n}</span>`; }catch(e){}
+  }
+  return '';
+}
 function renderTabs(){
   const groups = currentNavGroups();
   // Le groupe qui contient l'onglet actif reste (ou redevient) déplié.
@@ -1813,7 +1806,7 @@ function renderTabs(){
           <span class="nav-group-big-chev">${open?'︿':'﹀'}</span>
         </button>
         <div class="nav-subitems ${open?'open':''}">
-          ${g.items.map(t => `<button class="${t.id===activeTab?'active':''}" onclick="setTab('${t.id}')"><span class="emoji">${t.emoji}</span>${t.label}</button>`).join('')}
+          ${g.items.map(t => `<button class="${t.id===activeTab?'active':''}" onclick="setTab('${t.id}')"><span class="emoji">${t.emoji}</span>${t.label}${navBadgeFor(t.id)}</button>`).join('')}
         </div>
       `;
     }
@@ -2219,6 +2212,8 @@ function renderDashboard(){
     return { v, mois:m, an };
   }).sort((a,b)=>b.mois.marge-a.mois.marge);
   const totMois = renta.reduce((a,r)=>({gains:a.gains+r.mois.gains, depenses:a.depenses+r.mois.depenses, decote:a.decote+r.mois.decote, marge:a.marge+r.mois.marge}), {gains:0,depenses:0,decote:0,marge:0});
+  const occList = renta.map(r=>r.mois.occupation).filter(x=>x!=null);
+  const avgOcc = occList.length ? occList.reduce((s,x)=>s+x,0)/occList.length : null;
 
   const alertRows = alerts.detailed.map((a,i)=>`<div class="alert-item ${a.sev}" style="cursor:pointer;" onclick="goToAlert(${i})"><span class="txt">${escapeHtml(a.txt)}</span></div>`).join('');
   window.__dashboardAlerts = alerts.detailed;
@@ -2237,6 +2232,30 @@ function renderDashboard(){
       </div>
     </div>
 
+    <div class="ov-hero">
+      <div class="ov-hero-item">
+        <div class="ov-hero-label">💶 Résultat Compta — ce mois</div>
+        <div class="ov-hero-value" style="color:${cpt && cpt.marge>=0?'var(--green)':cpt?'var(--red)':'var(--muted)'}">${cpt?fmtEUR(cpt.marge):'—'}</div>
+        <div class="ov-hero-sub">${cpt?`${fmtEUR(cpt.recettes)} encaissé − ${fmtEUR(cpt.depenses)} dépensé`:'Module Compta non chargé'}</div>
+      </div>
+      <div class="ov-hero-item">
+        <div class="ov-hero-label">📊 Marge Rentabilité — ${MONTHS[month]}</div>
+        <div class="ov-hero-value" style="color:${totMois.marge>=0?'var(--green)':'var(--red)'}">${fmtEUR(totMois.marge)}</div>
+        <div class="ov-hero-sub">${vehicles.length} véhicule${vehicles.length>1?'s':''} suivi${vehicles.length>1?'s':''}</div>
+      </div>
+      <div class="ov-hero-item">
+        <div class="ov-hero-label">🚗 Occupation flotte</div>
+        <div class="ov-hero-value">${avgOcc!=null?avgOcc.toFixed(0)+'%':'—'}</div>
+        <div class="ov-hero-sub">${vehActifs} actif${vehActifs>1?'s':''} · Réparation ${enReparation}</div>
+      </div>
+      <div class="ov-hero-item">
+        <div class="ov-hero-label">🔔 Alertes & à vérifier</div>
+        <div class="ov-hero-value" style="color:${(totalAlerts+(cpt?cpt.aVerifier:0))>0?'var(--amber)':'var(--text)'}">${totalAlerts+(cpt?cpt.aVerifier:0)}</div>
+        <div class="ov-hero-sub">${totalAlerts} véhicule${totalAlerts>1?'s':''} · ${cpt?cpt.aVerifier:0} compta</div>
+      </div>
+    </div>
+
+    <div class="ov-section-label">🚗 Location</div>
     <div class="ov-grid">
       <div class="ov-tile" onclick="setTab('vehicules')">
         <div class="ov-icon" style="background:var(--primary-light);color:var(--primary);">🚗</div>
@@ -2250,7 +2269,17 @@ function renderDashboard(){
         <div class="ov-value">${totalAlerts}</div>
         <div class="ov-sub">${totalAlerts>0?'À traiter':'Tout est en ordre'}</div>
       </div>
-      ${cpt ? `
+      <div class="ov-tile" onclick="setTab('rentabilite')">
+        <div class="ov-icon" style="background:var(--primary-light);color:var(--primary);">📊</div>
+        <div class="ov-label">Occupation moyenne</div>
+        <div class="ov-value">${avgOcc!=null?avgOcc.toFixed(0)+'%':'—'}</div>
+        <div class="ov-sub">${MONTHS[month]} ${year}</div>
+      </div>
+    </div>
+
+    ${cpt ? `
+    <div class="ov-section-label">💶 Compta</div>
+    <div class="ov-grid">
       <div class="ov-tile" onclick="setTab('cpt_recettes')">
         <div class="ov-icon" style="background:var(--green-bg);color:var(--green);">📗</div>
         <div class="ov-label">Recettes — ce mois</div>
@@ -2274,8 +2303,8 @@ function renderDashboard(){
         <div class="ov-label">À vérifier</div>
         <div class="ov-value">${cpt.aVerifier}</div>
         <div class="ov-sub">${cpt.tva ? `TVA Vente ${cpt.tva.pctVente}% · Service ${cpt.tva.pctService}%` : 'Compta'}</div>
-      </div>` : ''}
-    </div>
+      </div>
+    </div>` : ''}
 
     <div class="two-col">
       <div class="card">
@@ -2394,7 +2423,6 @@ async function shareOrSavePDF(doc, filename){
 const RENTA_REVENUS = [
   {key:'rev_getaround', label:'Getaround'},
   {key:'rev_turo',      label:'Turo'},
-  {key:'rev_roadstr',   label:'Roadstr'},
   {key:'rev_vente',     label:'Vente du véhicule'},
   {key:'rev_autres',    label:'Autres gains'}
 ];
@@ -2425,13 +2453,13 @@ function rentaTotaux(row){
   return { gains, depenses, decote, marge: gains-depenses-decote, rempli: !!row };
 }
 /* Taux d'occupation lu automatiquement dans le Planning Véhicules (jours
-   loués : Getaround, Turo, Roadstr ou location directe). */
+   loués : Getaround, Turo ou location directe). */
 function rentaOccupationMois(vehicleId, year, mois){
   const nd = daysInMonth(year, mois);
   const mk = `${year}-${pad2(mois+1)}`;
   const monthData = (state.planningVehicules[vehicleId]||{})[mk] || {};
   let occ = 0;
-  for(let d=1; d<=nd; d++){ const s = monthData[d]; if(s==='GA'||s==='Turo'||s==='Roadstr') occ++; }
+  for(let d=1; d<=nd; d++){ const s = monthData[d]; if(s==='GA'||s==='Turo') occ++; }
   const now = new Date();
   const commence = year < now.getFullYear() || (year===now.getFullYear() && mois<=now.getMonth());
   return { occDays:occ, totalDaysMonth:nd, occupation: commence ? (occ/nd*100) : null };
@@ -2599,7 +2627,7 @@ function renderRentabilite(){
           </tr>
         </tbody>
       </table></div>
-      <div class="page-sub" style="margin-top:10px;">Marge = gains encaissés − dépenses − décote. Le taux d'occupation est repris automatiquement du Planning Véhicules (jours Getaround, Turo et Roadstr).</div>
+      <div class="page-sub" style="margin-top:10px;">Marge = gains encaissés − dépenses − décote. Le taux d'occupation est repris automatiquement du Planning Véhicules (jours Getaround et Turo).</div>
     </div>
 
     ${sel ? `
@@ -2656,7 +2684,7 @@ function renderPlanningVeh(){
       <div class="field"><label class="small">Année</label><select onchange="state.ui.year=parseInt(this.value); render();">${yearOptions}</select></div>
       <button class="btn secondary" onclick="addVehicule()">+ Ajouter un véhicule</button>
     </div>
-    <div class="legend"><span><span class="sw" style="background:var(--green);"></span>Getaround</span><span><span class="sw" style="background:var(--primary);"></span>Turo</span><span><span class="sw" style="background:#ea580c;"></span>Roadstr</span><span><span class="sw" style="background:#7f1d1d;"></span>Sinistre</span><span><span class="sw" style="background:transparent;border:1px solid var(--border-2);"></span>Libre</span></div>
+    <div class="legend"><span><span class="sw" style="background:var(--green);"></span>Getaround</span><span><span class="sw" style="background:var(--primary);"></span>Turo</span><span><span class="sw" style="background:#7f1d1d;"></span>Sinistre</span><span><span class="sw" style="background:transparent;border:1px solid var(--border-2);"></span>Libre</span></div>
 
     ${vehicles.length>0 ? `
     <div class="card">
@@ -2671,7 +2699,6 @@ function renderPlanningVeh(){
           <select id="rangeVehStatut">
             <option value="GA">Getaround</option>
             <option value="Turo">Turo</option>
-            <option value="Roadstr">Roadstr</option>
             <option value="Sinistre">Sinistre</option>
             <option value="">Libre (effacer)</option>
           </select>
@@ -2724,21 +2751,20 @@ function renderPlanningVeh(){
 const PLANNING_VEH_STATUTS = {
   'GA':      { label:'Getaround',       cls:'ga',       txt:'GA' },
   'Turo':    { label:'Turo',            cls:'turo',     txt:'TU' },
-  'Roadstr': { label:'Roadstr',         cls:'roadstr',  txt:'RD' },
   'Sinistre':{ label:'Sinistre',        cls:'sinistre', txt:'SI' }
 };
 function planningVehInfo(val){ return PLANNING_VEH_STATUTS[val] || { label:'Libre', cls:'', txt:'' }; }
-const RESA_PLATFORMS = ['GA','Turo','Roadstr'];
+const RESA_PLATFORMS = ['GA','Turo'];
 async function cyclePlanningVeh(vid, year, month, day){
   const mk = `${year}-${pad2(month+1)}`;
   const ds = dateStr(year, month, day);
   const cur = (state.planningVehicules[vid] && state.planningVehicules[vid][mk] && state.planningVehicules[vid][mk][day]) || '';
-  const order = ['', 'GA', 'Turo', 'Roadstr', 'Sinistre'];
+  const order = ['', 'GA', 'Turo', 'Sinistre'];
   const i = order.indexOf(cur);
   const next = order[(i>=0 ? i+1 : 1) % order.length];
   // Anti-chevauchement : si le jour était déjà occupé par une autre plateforme,
   // on prévient avant d'écraser l'info (le planning n'est pas synchronisé
-  // automatiquement avec Getaround/Turo/Roadstr, donc c'est la seule protection).
+  // automatiquement avec Getaround/Turo, donc c'est la seule protection).
   if(cur && next && cur !== next){
     const okOverwrite = await iosConfirm({
       title: 'Écraser ce jour ?',
@@ -2748,7 +2774,7 @@ async function cyclePlanningVeh(vid, year, month, day){
     if(!okOverwrite) return;
   }
   // Blocage obligatoire : comme il n'existe pas de synchro automatique entre
-  // Getaround, Turo et Roadstr, on ne considère le jour comme réservé
+  // Getaround et Turo, on ne considère le jour comme réservé
   // qu'une fois que l'utilisateur a confirmé avoir bloqué la date ailleurs.
   if(RESA_PLATFORMS.includes(next)){
     const autres = RESA_PLATFORMS.filter(p=>p!==next).map(p=>planningVehInfo(p).label);
@@ -2809,7 +2835,7 @@ async function applyRangeVeh(){
   }
 
   // Blocage obligatoire : comme il n'existe pas de synchro automatique entre
-  // Getaround, Turo et Roadstr, on ne considère la période comme réservée
+  // Getaround et Turo, on ne considère la période comme réservée
   // qu'une fois que l'utilisateur a confirmé avoir bloqué les dates ailleurs.
   if(RESA_PLATFORMS.includes(statut)){
     const autres = RESA_PLATFORMS.filter(p=>p!==statut).map(p=>planningVehInfo(p).label);
@@ -3077,10 +3103,6 @@ function renderVehicules(){
         </div>
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:18px;flex-wrap:wrap;">
           <div>
-            <label class="small" style="display:block;margin-bottom:4px;">Autorisation d'exploitation (PDF)</label>
-            <button class="btn secondary small" onclick="showAutorisationForm('${v.id}')">🖨️ Générer le PDF signé</button>
-          </div>
-          <div>
             <label class="small" style="display:block;margin-bottom:4px;">Carte grise</label>
             ${v.carte_grise_url ? `
               <div style="display:flex;gap:6px;">
@@ -3100,17 +3122,6 @@ function renderVehicules(){
               </div>
             ` : `
               <label class="btn secondary small" style="cursor:pointer;">📎 Joindre<input type="file" accept="image/*,.pdf" style="display:none;" onchange="uploadVehicleDoc('${v.id}','assurance_url', this.files[0]); this.value='';"></label>
-            `}
-          </div>
-          <div>
-            <label class="small" style="display:block;margin-bottom:4px;">Autorisation d'exploitation</label>
-            ${v.autorisation_url ? `
-              <div style="display:flex;gap:6px;">
-                <button class="btn secondary small" onclick="viewVehicleDoc('${v.id}','autorisation_url')">📄 Voir</button>
-                <button class="btn danger small" onclick="removeVehicleDoc('${v.id}','autorisation_url')">✕ Retirer</button>
-              </div>
-            ` : `
-              <label class="btn secondary small" style="cursor:pointer;">📎 Joindre<input type="file" accept="image/*,.pdf" style="display:none;" onchange="uploadVehicleDoc('${v.id}','autorisation_url', this.files[0]); this.value='';"></label>
             `}
           </div>
         </div>
@@ -3362,251 +3373,6 @@ function exportCarnetPDF(vehicleId){
     }
 
     shareOrSavePDF(doc, `SBRAUTO_carnet_entretien_${(v.immat||'vehicule').replace(/[^A-Za-z0-9]/g,'')}.pdf`);
-  }catch(e){
-    toast('Erreur génération PDF: '+e.message, true);
-  }
-}
-function showAutorisationForm(vehicleId){
-  const v = state.vehicles.find(v=>v.id===vehicleId);
-  if(!v) return;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'ios-sheet-backdrop';
-  backdrop.innerHTML = `
-    <div class="ios-sheet" style="max-width:460px;">
-      <div class="ios-sheet-card" style="text-align:left;">
-        <div style="padding:16px;">
-          <div style="font-size:15px;font-weight:700;margin-bottom:2px;">Autorisation d'exploitation</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.4;">
-            Mémorisé pour la prochaine fois (n'apparaît pas sur la fiche véhicule). Le PDF sera signé électroniquement pour les deux parties dès sa génération.
-          </div>
-          <div class="field" style="margin-bottom:10px;"><label class="small">N° VIN</label><input id="afVin" value="${escapeHtml(v.vin||'')}"></div>
-          <div class="field" style="margin-bottom:10px;"><label class="small">Propriétaire — nom et prénom</label><input id="afNom" value="${escapeHtml(v.proprietaire_nom||'')}"></div>
-          <div class="field" style="margin-bottom:10px;"><label class="small">Né(e) le</label><input id="afNaissance" type="date" value="${v.proprietaire_naissance||''}"></div>
-          <div class="field"><label class="small">Adresse du propriétaire</label><input id="afAdresse" value="${escapeHtml(v.proprietaire_adresse||'')}"></div>
-        </div>
-        <button class="ios-sheet-btn" data-act="gen" style="font-weight:700;color:var(--primary);">🖨️ Générer le PDF (signature automatique)</button>
-      </div>
-      <button class="ios-sheet-btn ios-sheet-cancel" data-act="cancel">Annuler</button>
-    </div>`;
-  document.body.appendChild(backdrop);
-  requestAnimationFrame(() => requestAnimationFrame(() => backdrop.classList.add('show')));
-  function close(){ backdrop.classList.remove('show'); setTimeout(() => backdrop.remove(), 280); }
-  backdrop.querySelector('[data-act="cancel"]').onclick = close;
-  backdrop.addEventListener('click', e => { if(e.target===backdrop) close(); });
-  backdrop.querySelector('[data-act="gen"]').onclick = () => {
-    const updates = {
-      vin: document.getElementById('afVin').value.trim(),
-      proprietaire_nom: document.getElementById('afNom').value.trim(),
-      proprietaire_naissance: document.getElementById('afNaissance').value,
-      proprietaire_adresse: document.getElementById('afAdresse').value.trim()
-    };
-    close();
-    // Mémorise silencieusement pour préremplir la prochaine fois (n'apparaît
-    // pas comme champs visibles sur la fiche véhicule).
-    Object.entries(updates).forEach(([k,val]) => {
-      if((v[k]||'') !== val){
-        v[k] = val;
-        queueWrite({ run: () => sb.from('vehicles').update({ [k]: val===''?null:val }).eq('id', v.id) });
-      }
-    });
-    exportAutorisationPDF(vehicleId);
-  };
-}
-function pdfAddWrapped(doc, text, x, y, maxWidth, lineHeight){
-  const lines = doc.splitTextToSize(text, maxWidth);
-  lines.forEach(line => {
-    if(y > 280){ doc.addPage(); y = 20; }
-    doc.text(line, x, y);
-    y += lineHeight;
-  });
-  return y;
-}
-function exportAutorisationPDF(vehicleId){
-  try{
-    if(!window.jspdf || !window.jspdf.jsPDF){
-      toast('La librairie PDF n\'a pas pu se charger (vérifie ta connexion internet) — réessaie dans quelques secondes.', true);
-      return;
-    }
-    const v = state.vehicles.find(v=>v.id===vehicleId);
-    if(!v){ toast('Véhicule introuvable.', true); return; }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const marginX = 16, maxW = 210 - marginX*2;
-    let y = 16;
-
-    try{ doc.addImage(LOGO_DATA_URI, 'PNG', marginX, y-6, 13, 13); }catch(e){}
-    doc.setFontSize(12.5);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(20,20,20);
-    const titleLines = doc.splitTextToSize("AUTORISATION DE MISE À DISPOSITION ET D'EXPLOITATION D'UN VÉHICULE", maxW - 17);
-    doc.text(titleLines, marginX+17, y-2);
-    y += titleLines.length*5.2 + 6;
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(120,120,120);
-    doc.text('SBR AUTO — généré le ' + new Date().toLocaleDateString('fr-FR'), marginX, y);
-    y += 10;
-
-    doc.setFontSize(10.5);
-    doc.setTextColor(20,20,20);
-
-    const today = new Date().toLocaleDateString('fr-FR');
-    const gerantNom = (state.profile && state.profile.nom) || '_______________________________________________';
-    const proprioNom = v.proprietaire_nom || '_______________________________________________';
-    const proprioNaissance = v.proprietaire_naissance ? fmtDate(v.proprietaire_naissance) : '_____________________';
-    const proprioAdresse = v.proprietaire_adresse || '_______________________________________________';
-
-    const bullets = (arr) => { arr.forEach(b => { y = pdfAddWrapped(doc, '•  ' + b, marginX+4, y, maxW-4, 6); }); y += 4; };
-    const para = (t) => { y = pdfAddWrapped(doc, t, marginX, y, maxW, 6); y += 4; };
-    const heading = (t) => {
-      if(y > 265) { doc.addPage(); y = 20; }
-      y += 2;
-      doc.setFont(undefined, 'bold');
-      y = pdfAddWrapped(doc, t, marginX, y, maxW, 6);
-      doc.setFont(undefined, 'normal');
-      y += 2;
-    };
-
-    y = pdfAddWrapped(doc, `Je soussigné(e) :`, marginX, y, maxW, 6);
-    y += 2;
-    y = pdfAddWrapped(doc, `M./Mme ${proprioNom}`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Né(e) le ${proprioNaissance}`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Demeurant à ${proprioAdresse}`, marginX, y, maxW, 6);
-    y += 4;
-    para(`déclare être propriétaire / titulaire des droits d'utilisation du véhicule suivant :`);
-    bullets([
-      `Véhicule : ${v.nom || '—'}`,
-      `Immatriculation : ${v.immat || '—'}`,
-      `Numéro VIN : ${v.vin || '—'}`
-    ]);
-
-    para(`Par la présente, j'autorise expressément la société :`);
-    doc.setFont(undefined, 'bold');
-    y = pdfAddWrapped(doc, `SBR AUTO`, marginX, y, maxW, 6);
-    doc.setFont(undefined, 'normal');
-    y = pdfAddWrapped(doc, `Immatriculée au RCS de Nanterre sous le numéro 889 384 970`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `12 avenue Claude Debussy, 92230 Gennevilliers`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Représentée par son gérant, M. ${gerantNom}`, marginX, y, maxW, 6);
-    y += 4;
-
-    para(`à utiliser, exploiter et mettre à disposition le véhicule désigné ci-dessus dans le cadre de son activité professionnelle, notamment pour une activité de location de véhicules par l'intermédiaire de plateformes spécialisées telles que Getaround et Turo, ainsi que toute autre plateforme légalement utilisée par la société.`);
-
-    heading(`1. Étendue de l'autorisation`);
-    para(`La présente autorisation permet notamment à SBR AUTO :`);
-    bullets([
-      `de référencer le véhicule sur Getaround, Turo et toute autre plateforme de location ;`,
-      `de proposer le véhicule à la location ;`,
-      `de gérer les réservations ;`,
-      `de communiquer avec les locataires et les plateformes ;`,
-      `de remettre et récupérer le véhicule auprès des locataires ;`,
-      `d'effectuer les états des lieux, contrôles et photographies nécessaires ;`,
-      `de gérer les éventuels incidents, sinistres et réclamations liés aux locations ;`,
-      `d'assurer la gestion administrative et opérationnelle des locations ;`,
-      `d'effectuer les démarches nécessaires auprès des plateformes, assureurs et prestataires ;`,
-      `de percevoir directement les sommes et revenus résultant de l'exploitation du véhicule.`
-    ]);
-
-    heading(`2. Mise à disposition à titre gratuit`);
-    para(`Le propriétaire déclare mettre le véhicule à la disposition de SBR AUTO à titre gratuit, sans perception de loyer, redevance ou autre contrepartie financière au titre de la mise à disposition du véhicule.`);
-    para(`Cette mise à disposition gratuite n'empêche pas SBR AUTO de prendre en charge les dépenses et frais nécessaires à l'exploitation professionnelle du véhicule.`);
-
-    heading(`3. Assurance`);
-    para(`Le propriétaire autorise expressément SBR AUTO à effectuer, pour les besoins de l'exploitation du véhicule, les démarches nécessaires auprès des compagnies d'assurance, de Getaround, Turo et de tout autre prestataire ou plateforme concerné afin de mettre en place, maintenir ou justifier les garanties d'assurance nécessaires à l'activité de location.`);
-    para(`Lorsque les conditions contractuelles de l'assureur le permettent, SBR AUTO est autorisée à régler directement les primes, cotisations et frais d'assurance liés au véhicule depuis son propre compte bancaire, y compris lorsque le contrat d'assurance est établi au nom du propriétaire.`);
-    para(`Le propriétaire reconnaît que l'utilisation du véhicule dans le cadre de la location doit être déclarée à l'assureur lorsque cela est requis et que les garanties souscrites doivent expressément couvrir l'utilisation prévue.`);
-
-    heading(`4. Prise en charge des frais d'exploitation`);
-    para(`SBR AUTO pourra prendre en charge les frais directement liés à l'exploitation du véhicule dans le cadre de son activité professionnelle, notamment :`);
-    bullets([
-      `les primes et cotisations d'assurance ;`,
-      `l'entretien courant ;`,
-      `le nettoyage ;`,
-      `la préparation du véhicule ;`,
-      `le stationnement ;`,
-      `les frais administratifs ;`,
-      `les frais liés aux plateformes ;`,
-      `et plus généralement tout frais directement nécessaire à l'exploitation du véhicule.`
-    ]);
-    para(`La prise en charge de ces frais ne constitue pas un loyer ou une rémunération versée au propriétaire en contrepartie de la mise à disposition du véhicule.`);
-
-    heading(`5. Exploitation et perception des revenus`);
-    para(`Le propriétaire autorise expressément SBR AUTO à exploiter le véhicule dans le cadre de son activité professionnelle de location.`);
-    para(`SBR AUTO est autorisée à créer et gérer les annonces relatives au véhicule sur Getaround, Turo et toute autre plateforme utilisée dans le cadre de son activité.`);
-    para(`SBR AUTO est également autorisée à percevoir directement les revenus générés par les locations effectuées dans le cadre de cette exploitation.`);
-
-    heading(`6. Gestion du véhicule`);
-    para(`Dans le cadre de la présente autorisation, SBR AUTO est autorisée à effectuer toutes les opérations nécessaires à la gestion courante du véhicule et de son activité de location, dans les limites prévues par la réglementation applicable.`);
-    para(`SBR AUTO pourra notamment organiser les remises et restitutions du véhicule, effectuer les contrôles avant et après location, assurer le nettoyage et la préparation du véhicule et gérer les éventuels échanges avec les locataires et les plateformes.`);
-
-    heading(`7. Déclaration du propriétaire`);
-    para(`Le propriétaire déclare :`);
-    bullets([
-      `être propriétaire du véhicule ou disposer des droits nécessaires pour accorder la présente autorisation ;`,
-      `avoir pleinement connaissance de l'utilisation professionnelle prévue du véhicule ;`,
-      `autoriser expressément SBR AUTO à exploiter le véhicule dans le cadre de la location ;`,
-      `informer SBR AUTO de toute restriction liée notamment à un financement, crédit, leasing, crédit-bail ou contrat d'assurance ;`,
-      `autoriser SBR AUTO à présenter la présente attestation à Getaround, Turo, aux assureurs, administrations et tout autre organisme susceptible d'en demander justification.`
-    ]);
-
-    heading(`8. Durée`);
-    para(`La présente autorisation prend effet à compter du ${today} et est consentie pour une durée indéterminée.`);
-    para(`Elle pourra être révoquée par le propriétaire par écrit.`);
-    para(`Toutefois, lorsque cela est nécessaire, les réservations déjà confirmées et les obligations contractuelles en cours pourront être menées à leur terme conformément aux conditions applicables.`);
-
-    heading(`9. Valeur de la présente autorisation`);
-    para(`La présente autorisation est établie afin de justifier auprès de Getaround, Turo, des compagnies d'assurance, organismes administratifs et de tout autre tiers que SBR AUTO dispose de l'autorisation du propriétaire pour exploiter le véhicule dans le cadre de son activité professionnelle de location.`);
-    para(`Elle ne constitue pas un transfert de propriété du véhicule.`);
-
-    const now = new Date();
-    const nowStr = now.toLocaleDateString('fr-FR') + ' à ' + now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-
-    if(y > 240) { doc.addPage(); y = 20; }
-    y = pdfAddWrapped(doc, `Fait à Gennevilliers, le ${today}.`, marginX, y, maxW, 6);
-    y += 12;
-
-    doc.setFont(undefined, 'bold');
-    y = pdfAddWrapped(doc, `LE PROPRIÉTAIRE DU VÉHICULE`, marginX, y, maxW, 6);
-    doc.setFont(undefined, 'normal');
-    y += 2;
-    y = pdfAddWrapped(doc, `Nom et prénom : ${proprioNom}`, marginX, y, maxW, 6);
-    y += 3;
-    doc.setFont(undefined, 'italic');
-    doc.setFontSize(9);
-    y = pdfAddWrapped(doc, `« Lu et approuvé – J'autorise expressément SBR AUTO à utiliser et exploiter mon véhicule dans le cadre de son activité professionnelle de location, notamment via Getaround et Turo, et l'autorise à prendre en charge les frais d'assurance et d'exploitation conformément à la présente autorisation. »`, marginX, y, maxW, 5);
-    doc.setFontSize(10.5);
-    y += 4;
-    doc.setFont('times', 'bolditalic');
-    doc.setFontSize(16);
-    y = pdfAddWrapped(doc, proprioNom, marginX, y, maxW, 8);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(120,120,120);
-    y = pdfAddWrapped(doc, `Signature électronique certifiée par saisie dans l'application SBR AUTO le ${nowStr}.`, marginX, y, maxW, 5);
-    doc.setFontSize(10.5);
-    doc.setTextColor(20,20,20);
-    y += 10;
-
-    if(y > 245) { doc.addPage(); y = 20; }
-    doc.setFont('helvetica', 'bold');
-    y = pdfAddWrapped(doc, `SBR AUTO`, marginX, y, maxW, 6);
-    doc.setFont('helvetica', 'normal');
-    y += 2;
-    y = pdfAddWrapped(doc, `RCS Nanterre : 889 384 970`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Adresse : 12 avenue Claude Debussy, 92230 Gennevilliers`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Représentée par : ${gerantNom}`, marginX, y, maxW, 6);
-    y = pdfAddWrapped(doc, `Qualité : Gérant`, marginX, y, maxW, 6);
-    y += 6;
-    doc.setFont('times', 'bolditalic');
-    doc.setFontSize(16);
-    y = pdfAddWrapped(doc, gerantNom, marginX, y, maxW, 8);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(120,120,120);
-    y = pdfAddWrapped(doc, `Signature électronique certifiée par saisie dans l'application SBR AUTO le ${nowStr}.`, marginX, y, maxW, 5);
-    doc.setFontSize(10.5);
-    doc.setTextColor(20,20,20);
-
-    shareOrSavePDF(doc, `SBRAUTO_autorisation_exploitation_${(v.immat||'vehicule').replace(/[^A-Za-z0-9]/g,'')}.pdf`);
   }catch(e){
     toast('Erreur génération PDF: '+e.message, true);
   }
@@ -4725,20 +4491,31 @@ function wireYearSelector(el){
   sel.value = selectedYear;
   sel.onchange = (e)=>{ selectedYear = e.target.value; renderCompta(); };
 }
-function renderNav(){
-  const nav = document.getElementById('comptaNav');
-  nav.innerHTML='';
-  TABS.forEach(t=>{
-    const b=document.createElement('button');
-    b.textContent=t.label; b.className = t.id===current?'active':'';
-    if(t.id==='verif'){ const n = countAVerifier(); if(n) b.textContent += ` (${n})`; }
-    b.onclick=()=>{current=t.id; renderCompta();};
-    nav.appendChild(b);
-  });
-}
+/* Titre + sous-titre affichés dans le page-head de SBR AUTO pour chaque
+   sous-page de Compta (remplace l'ancienne barre d'onglets horizontale :
+   la navigation entre ces pages se fait désormais uniquement via la
+   sidebar / barre mobile, comme pour tout le reste de l'appli). */
+const COMPTA_PAGE_META = {
+  dash:      { title:'Bord Compta',  sub:'Vue globale de ton activité : recettes, dépenses, trésorerie' },
+  recettes:  { title:'Recettes',     sub:'Encaissements de l’activité de location' },
+  depenses:  { title:'Dépenses',     sub:'Charges professionnelles (entretien, assurance, carburant...)' },
+  remu:      { title:'Salaire',      sub:'Rémunération que tu te verses' },
+  apports:   { title:'Apports',      sub:'Argent personnel versé sur le compte pro, hors chiffre d’affaires' },
+  verif:     { title:'À vérifier',   sub:'Écritures à catégoriser ou doublons potentiels' },
+  import:    { title:'Import',       sub:'Importer un relevé bancaire pour catégorisation automatique' },
+  decl:      { title:'Déclarations', sub:'Déclarations et paiements URSSAF' },
+  tva:       { title:'TVA',          sub:'Franchise en base, suivi des seuils et justificatifs' },
+  ia:        { title:'ROOT IA',      sub:'Assistant comptable — pose une question sur tes chiffres' },
+  reglages:  { title:'Réglages Compta', sub:'Taux de cotisations, périodicité, options TVA' },
+  corbeille: { title:'Corbeille Compta', sub:'Écritures supprimées, restaurables 30 jours' }
+};
 function renderCompta(){
-  renderNav();
   updateTrashBadge();
+  const meta = COMPTA_PAGE_META[current] || { title:'Compta', sub:'' };
+  const titleEl = document.getElementById('comptaPageTitle');
+  const subEl = document.getElementById('comptaPageSub');
+  if(titleEl) titleEl.textContent = meta.title;
+  if(subEl) subEl.textContent = meta.sub;
   const main = document.getElementById('comptaMain');
   main.style.display='';
   main.innerHTML='';
